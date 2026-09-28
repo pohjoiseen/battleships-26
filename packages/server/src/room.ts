@@ -2,6 +2,7 @@ import {
   type Action,
   AI_SHOT_DELAY_MS,
   AI_THINK_DELAY_MS,
+  FIRING_MS,
   turnIntroMs,
   applyAction,
   type ClientMessage,
@@ -41,6 +42,8 @@ export class Room {
   private readonly connections: [Set<Connection>, Set<Connection>] = [new Set(), new Set()];
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private aiBusy = false;
+  /** Between the last shot of a turn being placed and the salvo going. */
+  private firing = false;
   player2Joined: boolean;
   lastActivity = Date.now();
 
@@ -82,12 +85,12 @@ export class Room {
       return;
     }
     const action: Action =
-      msg.t === 'draft' || msg.t === 'ready'
-        ? { type: msg.t, player, layout: msg.layout }
-        : msg.t === 'toggleShot'
-          ? { type: 'toggleShot', player, cell: msg.cell }
-          : { type: 'fire', player };
-    const result = this.apply(action);
+      msg.t === 'toggleShot'
+        ? { type: 'toggleShot', player, cell: msg.cell }
+        : { type: msg.t, player, layout: msg.layout };
+    const result: { ok: true } | { ok: false; error: string } = this.firing
+      ? { ok: false, error: 'the salvo is on its way' }
+      : this.apply(action);
     if (!result.ok) {
       from.send(JSON.stringify({ t: 'error', message: result.error } satisfies ServerMessage));
       // resync the sender, whose local state may have run ahead of the server's
@@ -109,6 +112,20 @@ export class Room {
       const duration = salvoDurationMs(this.state.lastSalvo!, this.opts.timeScale);
       this.later(duration, () => this.apply({ type: 'advance' }));
     }
+    // the last shot of a turn fires the salvo, after the shots have flashed on the chart
+    const s = this.state;
+    if (
+      action.type === 'toggleShot' &&
+      s.phase === 'aiming' &&
+      s.pendingShots.length === shotsAllowed(s, s.turn)
+    ) {
+      const shooter = s.turn;
+      this.firing = true;
+      this.later(FIRING_MS * this.opts.timeScale, () => {
+        this.firing = false;
+        this.apply({ type: 'fire', player: shooter });
+      });
+    }
     this.driveAi();
     return result;
   }
@@ -123,17 +140,16 @@ export class Room {
       { sea: [...enemy.sea], damage: [...enemy.damage], count: shotsAllowed(this.state, 1) },
       this.opts.rng,
     );
+    // the last shot fires the salvo (see apply)
     const step = (i: number) => {
-      if (i < shots.length) {
-        this.sendTo(0, { t: 'cursor', cell: shots[i]! });
-        applyAction(this.state, { type: 'toggleShot', player: 1, cell: shots[i]! }, this.opts.rng);
-        this.broadcast();
-        this.later(AI_SHOT_DELAY_MS * this.opts.timeScale, () => step(i + 1));
-      } else {
+      this.sendTo(0, { t: 'cursor', cell: shots[i]! });
+      const last = i === shots.length - 1;
+      if (last) {
         this.sendTo(0, { t: 'cursor', cell: null });
         this.aiBusy = false;
-        this.apply({ type: 'fire', player: 1 });
       }
+      this.apply({ type: 'toggleShot', player: 1, cell: shots[i]! });
+      if (!last) this.later(AI_SHOT_DELAY_MS * this.opts.timeScale, () => step(i + 1));
     };
     // wait for the turn's banner and title, which the human watches first
     const intro = turnIntroMs(1, shots.length);

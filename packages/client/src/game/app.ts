@@ -20,7 +20,7 @@ import {
   TYPE_MS,
 } from '@bs/shared';
 import { drawText, textWidth } from '../gfx/font.ts';
-import { sound, TYPE_UNIT_MS } from '../gfx/sound.ts';
+import { FIRE_BEEP_MS, sound, TYPE_UNIT_MS } from '../gfx/sound.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LH, LW, type Screen } from '../gfx/screen.ts';
 import {
@@ -88,8 +88,8 @@ export class App {
   /** Shot toggles sent but not yet reflected in a view; until then, local shots win. */
   private outstanding = 0;
   private cursorSentAt = 0;
-  /** Turn number we pressed FIRE on; input stays locked until the server moves on. */
-  private firedTurn = 0;
+  /** When this turn's last shot went down, and the shots began flashing before the salvo. */
+  private firing = { turn: 0, since: 0 };
   private cursorTimer: ReturnType<typeof setTimeout> | undefined;
 
   // sequencing
@@ -151,11 +151,10 @@ export class App {
 
   /**
    * The server rejected something (it resends the view right after). Drop local guesses so the
-   * view wins, and unlock FIRE in case that was what failed.
+   * view wins.
    */
   onServerError(): void {
     this.outstanding = 0;
-    this.firedTurn = 0;
   }
 
   onConnection(connected: boolean): void {
@@ -372,8 +371,18 @@ export class App {
     const defender = other(shooter);
     const mine = shooter === v.you;
     const aiming = this.canAim();
-    const pending = mine ? this.localPending : v.pendingShots;
+    const placed = mine ? this.localPending : v.pendingShots;
     this.g = geometry(defender === 1);
+
+    // the last shot fires the salvo: first the shots flash on the chart, with three beeps
+    const firing = placed.length === v.shotsAllowed;
+    if (firing && this.firing.turn !== v.turnNumber) {
+      this.firing = { turn: v.turnNumber, since: this.now };
+      sound.play('fire');
+    }
+    // on with each beep, and off long enough in between to see
+    const flash = (this.now - this.firing.since) % FIRE_BEEP_MS < 150;
+    const pending = firing && !flash ? [] : placed;
 
     // the title types out once the READY banner has gone, as in the original
     const [name, rest] = turnTitle(shooter, v.shotsAllowed);
@@ -390,24 +399,22 @@ export class App {
         chartSeed: v.chartSeed,
         shots: v.seas[defender].shots,
         pending,
-        cursor: aiming ? this.cursor : mine ? null : this.opponentCursor,
+        cursor: firing ? null : aiming ? this.cursor : mine ? null : this.opponentCursor,
       },
       this.now,
     );
     drawPanel(ctx, this.g, { owner: defender, damage: v.seas[defender].damage }, this.now);
 
-    const left = v.shotsAllowed - pending.length;
+    const left = v.shotsAllowed - placed.length;
     const problem = this.opponentProblem(v);
-    if (mine) {
-      this.buttons = buttonRow(this.g, [
-        { id: 'fire', label: 'FIRE', enabled: left === 0 && aiming },
-      ]);
+    if (firing) {
+      drawHint(ctx, this.g, 'FIRE!', C.brightYellow);
+    } else if (mine) {
       drawHint(
         ctx,
         this.g,
-        problem ??
-          (left > 0 ? `${plural(left, 'SHOT')} LEFT TO PLACE` : 'ALL SHOTS PLACED - FIRE!'),
-        problem ? C.brightRed : left === 0 && blink(this.now, 600) ? C.brightYellow : C.white,
+        problem ?? `${plural(left, 'SHOT')} LEFT TO PLACE`,
+        problem ? C.brightRed : C.white,
       );
     } else {
       drawHint(
@@ -608,10 +615,8 @@ export class App {
           y: Math.min(19, Math.max(0, c.y + arrow[1])),
         };
         this.setCursor(cellIndex(n));
-      } else if (e.key === ' ' && this.cursor !== null) {
+      } else if ((e.key === ' ' || e.key === 'Enter') && this.cursor !== null) {
         this.toggleShot(this.cursor);
-      } else if (e.key === 'Enter') {
-        this.press('fire');
       } else return false;
       return true;
     }
@@ -624,7 +629,6 @@ export class App {
   }
 
   private press(id: string): void {
-    const v = this.view!;
     switch (id) {
       case 'rotate':
         if (this.selected !== null) this.rotate(this.selected);
@@ -641,22 +645,18 @@ export class App {
           this.selected = null;
         }
         break;
-      case 'fire':
-        if (this.canAim() && this.localPending.length === v.shotsAllowed) {
-          this.firedTurn = v.turnNumber;
-          this.send({ t: 'fire' });
-        }
-        break;
       case 'new':
         location.href = '/';
         break;
     }
   }
 
-  /** Whether we are the shooter and haven't fired yet this turn. */
+  /** Whether we are the shooter and still placing shots (the last one fires the salvo). */
   private canAim(): boolean {
     const v = this.view;
-    return !!v && v.phase === 'aiming' && v.turn === v.you && this.firedTurn !== v.turnNumber;
+    return (
+      !!v && v.phase === 'aiming' && v.turn === v.you && this.localPending.length < v.shotsAllowed
+    );
   }
 
   private canEdit(): boolean {

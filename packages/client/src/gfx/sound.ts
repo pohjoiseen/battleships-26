@@ -56,6 +56,10 @@ function noise(
   return out;
 }
 
+/** The firing beeps: each lasts this long, out of a cycle this long (ms). */
+export const FIRE_BEEP_ON_MS = 210;
+export const FIRE_BEEP_MS = 280;
+
 /** Length of one burst of the teletype chatter, in ms. */
 export const TYPE_UNIT_MS = 105;
 
@@ -102,9 +106,9 @@ export const SYNTHS: Record<SoundName, Synth> = {
   fire: (sr) =>
     square(
       sr,
-      0.84,
+      (3 * FIRE_BEEP_MS) / 1000,
       () => 820,
-      (t) => (t % 0.28 < 0.21 ? 0.8 : 0),
+      (t) => ((t * 1000) % FIRE_BEEP_MS < FIRE_BEEP_ON_MS ? 0.8 : 0),
     ),
   // shells in the air: a tone stepping down from 1900 to 1300 Hz, over and over (looped)
   shells: (sr) => {

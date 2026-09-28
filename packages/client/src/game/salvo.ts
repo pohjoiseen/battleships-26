@@ -557,7 +557,6 @@ export function salvoSounds(salvo: SalvoView, events: ShotEvent[], prev: number,
     if (crossed(from) || (prev < 0 && now > from && now < to - 100))
       sound.play(name, { seconds: (to - Math.max(from, now)) / 1000, volume });
   };
-  if (prev < 0 && now < 300) sound.play('fire');
   loop('rush', INTRO * k, salvo.durationMs - 200, 0.5);
   for (const [from, to] of flights(events)) loop('shells', from, to);
   for (const e of events) {

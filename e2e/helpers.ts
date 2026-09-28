@@ -29,14 +29,12 @@ export async function startGame(page: Page, mode: '1p' | '2p') {
   await waitForScreen(page, 'placing');
 }
 
-/** Places this turn's shots on the first unshot cells, by clicking the canvas, then fires. */
+/** Places this turn's shots on the first unshot cells, by clicking the canvas; the last fires. */
 export async function takeTurn(page: Page) {
   const v = await view(page);
   const sea = v.seas[v.turn === 0 ? 1 : 0].shots;
   const targets = sea.flatMap((s, i) => (s === 0 ? [i] : [])).slice(0, v.shotsAllowed);
   for (const cell of targets) await clickCell(page, cell);
-  await page.waitForFunction((n) => window.__bs!.view()!.pendingShots.length === n, targets.length);
-  await clickButton(page, 'fire');
   await waitForScreen(page, 'salvo', 'over-message', 'winners');
 }
 

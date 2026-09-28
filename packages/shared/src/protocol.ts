@@ -19,7 +19,6 @@ export const clientMessage = z.discriminatedUnion('t', [
   z.object({ t: z.literal('draft'), layout: z.array(placement).max(10) }),
   z.object({ t: z.literal('ready'), layout: z.array(placement).max(10) }),
   z.object({ t: z.literal('toggleShot'), cell }),
-  z.object({ t: z.literal('fire') }),
   /** Where the shooter's cursor is, relayed live to the opponent. */
   z.object({ t: z.literal('cursor'), cell: cell.nullable() }),
 ]);

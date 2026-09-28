@@ -94,7 +94,7 @@ describe('server', () => {
     expect(msg).toMatchObject({ fatal: true });
   });
 
-  it('plays a 2-player turn: ready, cursor relay, shots, fire, resolve', async () => {
+  it('plays a 2-player turn: ready, cursor relay, shots, auto-fire, resolve', async () => {
     const { base, ws } = await start();
     const token1 = await createGame(base, '2p');
     const p1 = client(`${ws}/ws?token=${token1}`);
@@ -122,9 +122,13 @@ describe('server', () => {
     expect(await watcher.next((m) => m.t === 'error')).toMatchObject({ message: 'not your turn' });
 
     for (let cell = 0; cell < aiming.shotsAllowed; cell++) shooter.send({ t: 'toggleShot', cell });
+    // the last shot fires the salvo by itself; the shots can't be changed while it goes
+    shooter.send({ t: 'toggleShot', cell: 0 });
     const seen = await watcher.view((v) => v.pendingShots.length === aiming.shotsAllowed);
     expect(seen.pendingShots).toHaveLength(24);
-    shooter.send({ t: 'fire' });
+    expect(await shooter.next((m) => m.t === 'error')).toMatchObject({
+      message: 'the salvo is on its way',
+    });
 
     const resolving = await watcher.view((v) => v.phase === 'resolving');
     expect(resolving.lastSalvo!.shots).toHaveLength(24);
@@ -146,7 +150,6 @@ describe('server', () => {
     const view = await p1.view((x) => x.phase === 'aiming');
     if (view.turn === 0) {
       for (let cell = 0; cell < view.shotsAllowed; cell++) p1.send({ t: 'toggleShot', cell });
-      p1.send({ t: 'fire' });
       await p1.view((x) => x.phase === 'aiming' && x.turn === 1);
     }
     // watch the AI aim (cursor messages) and fire
