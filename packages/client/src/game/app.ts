@@ -15,6 +15,9 @@ import {
   rotatePlacement,
   SEA_HIT,
   SEA_UNKNOWN,
+  TURN_BANNER_MS,
+  turnTitle,
+  TYPE_MS,
 } from '@bs/shared';
 import { drawText, textWidth } from '../gfx/font.ts';
 import { sound, TYPE_UNIT_MS } from '../gfx/sound.ts';
@@ -51,9 +54,6 @@ type ScreenName =
 type OverStage = 'over-message' | 'winners' | 'sailpast' | 'report';
 const OVER_STAGES: readonly OverStage[] = ['over-message', 'winners', 'sailpast', 'report'];
 
-const BANNER_MS = 1400;
-/** Typing speed of titles and messages, per character. */
-const TYPE_MS = 45;
 const OVER_MESSAGE_MS = 4000;
 const WINNERS_MS = 7000;
 const CURSOR_SEND_MS = 50;
@@ -127,7 +127,7 @@ export class App {
 
     if (v.phase === 'aiming' && v.turnNumber !== this.lastTurn) {
       this.lastTurn = v.turnNumber;
-      this.bannerUntil = now + BANNER_MS;
+      this.bannerUntil = now + TURN_BANNER_MS;
       this.opponentCursor = null;
       this.localPending = [...v.pendingShots];
       this.outstanding = 0;
@@ -376,9 +376,10 @@ export class App {
     this.g = geometry(defender === 1);
 
     // the title types out once the READY banner has gone, as in the original
+    const [name, rest] = turnTitle(shooter, v.shotsAllowed);
     const title: [string, string][] = [
-      [`PLAYER ${shooter + 1}`, playerColour(shooter)],
-      [` FIRE ${plural(v.shotsAllowed, 'SHOT')} AT NME`, C.brightCyan],
+      [name, playerColour(shooter)],
+      [rest, C.brightCyan],
     ];
     drawTitle(ctx, title, this.typeOut(`turn ${v.turnNumber}`, title, this.bannerUntil));
     drawSea(

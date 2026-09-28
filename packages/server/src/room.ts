@@ -2,6 +2,7 @@ import {
   type Action,
   AI_SHOT_DELAY_MS,
   AI_THINK_DELAY_MS,
+  turnIntroMs,
   applyAction,
   type ClientMessage,
   createGame,
@@ -134,7 +135,9 @@ export class Room {
         this.apply({ type: 'fire', player: 1 });
       }
     };
-    this.later(AI_THINK_DELAY_MS * this.opts.timeScale, () => step(0));
+    // wait for the turn's banner and title, which the human watches first
+    const intro = turnIntroMs(1, shots.length);
+    this.later((intro + AI_THINK_DELAY_MS) * this.opts.timeScale, () => step(0));
   }
 
   private later(ms: number, fn: () => void): void {
