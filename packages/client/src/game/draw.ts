@@ -81,17 +81,13 @@ export function drawSea(ctx: CanvasRenderingContext2D, g: Geometry, sea: SeaCont
     const rowY = cellOrigin(g, { x: 0, y: k }).y + 4;
     drawDigits(ctx, k, g.mirrored ? seaX + SEA_W + 3 : seaX - 10, rowY, C.black);
   }
-  drawText(
-    ctx,
-    `SEA OF PLAYER ${sea.owner + 1}`,
-    seaX + SEA_W / 2,
-    seaY + SEA_W + 12,
-    playerColour(sea.owner),
-    {
-      align: 'center',
-      bold: true,
-    },
-  );
+  // the name sits on a dark patch where it overlaps the chart's lower edge
+  const name = `SEA OF PLAYER ${sea.owner + 1}`;
+  const nameOpts = { align: 'center', bold: true } as const;
+  const nameW = textWidth(name, nameOpts);
+  ctx.fillStyle = C.black;
+  ctx.fillRect(Math.round(seaX + SEA_W / 2 - nameW / 2) - 3, seaY + SEA_W + 10, nameW + 6, 11);
+  drawText(ctx, name, seaX + SEA_W / 2, seaY + SEA_W + 12, playerColour(sea.owner), nameOpts);
 }
 
 function drawCross(ctx: CanvasRenderingContext2D, g: Geometry, i: number, colour: string) {

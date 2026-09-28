@@ -11,10 +11,10 @@ import { SLOT_W } from './ships.ts';
  */
 
 /** Space kept clear for the title above the sea and the text below it. */
-const TOP_LIMIT = 22;
-const BOTTOM_LIMIT = 283;
+const TOP_LIMIT = 21;
+const BOTTOM_LIMIT = 289;
 /** The furthest the coast reaches out from the paper the sea needs. */
-const MAX_REACH = 16;
+const MAX_REACH = 5;
 /** Dots of the fringe can go this far past the coast. */
 const FRINGE = 4;
 

@@ -24,7 +24,7 @@ export function geometry(mirrored: boolean): Geometry {
   return mirrored
     ? {
         mirrored,
-        seaX: 144,
+        seaX: 140,
         seaY: SEA_Y,
         cell: CELL,
         panelX: 6,
@@ -34,7 +34,7 @@ export function geometry(mirrored: boolean): Geometry {
       }
     : {
         mirrored,
-        seaX: 16,
+        seaX: 20,
         seaY: SEA_Y,
         cell: CELL,
         panelX: 266,
