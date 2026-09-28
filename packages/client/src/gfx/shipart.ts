@@ -370,19 +370,25 @@ const ussr: Record<ShipClass, { w: number; art: Art }> = {
       // twin 130 mm turrets fore and aft
       p.turret(64, 6, 1, 6, true);
       p.turret(8, 5, -1, 5, true);
-      // superstructure: bridge, big funnel, hangar
+      // stepped bridge tower topped by the flat "Top Steer" radar, a small dome ahead of it
       p.slopedBlock(46, 6, 14, 6, 3, true);
-      p.block(48, 12, 8, 3);
-      p.lattice(52, 15, 7, 6);
-      p.disc(52, 24, 3, Ink.Light, Ink.Mid); // the "Top Steer" radar dome
-      p.mast(52, 27, 4, 3);
-      p.funnel(34, 6, 9, 6, 2);
+      p.block(48, 12, 8, 3, true);
+      p.block(50, 15, 5, 2);
+      p.vline(52, 17, 2, Ink.Dark);
+      p.rect(50, 19, 5, 4, Ink.Light);
+      p.vline(54, 19, 4, Ink.Mid);
+      p.hline(50, 22, 5, Ink.Highlight);
+      p.hline(55, 12, 4, Ink.Light);
+      p.dot(58, 12, Ink.Mid);
+      p.hline(56, 13, 2, Ink.Highlight);
+      // the big boxy funnel, the tall lattice mast behind it, and the hangar
+      p.funnel(34, 6, 10, 9, 1);
       p.block(18, 5, 16, 5, true);
-      p.lattice(27, 10, 7, 4);
-      p.rect(24, 17, 6, 2, Ink.Light);
+      p.lattice(29, 10, 14, 6);
+      p.hline(27, 20, 5, Ink.Dark);
       // quad missile launcher beside the bridge
       p.tube(40, 11, 45, 13);
-      redFlag(p, 27, 17, 5);
+      redFlag(p, 29, 21, 4);
       return { hullH: 5, hitSpots: spots(3, 12, 70, 3, [3, 9, 3]) };
     },
   },
