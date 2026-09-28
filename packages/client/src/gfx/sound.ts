@@ -111,19 +111,23 @@ export const SYNTHS: Record<SoundName, Synth> = {
       () => 820,
       (t) => ((t * 1000) % FIRE_BEEP_MS < FIRE_BEEP_ON_MS ? 0.8 : 0),
     ),
-  // a shell leaving the gun: a tone stepping down from 1900 to 1300 Hz in eight steps,
-  // stretched to last until the next shell goes
+  // a shell in flight: a tone stepping down from 1900 to 1300 Hz in eight steps, lasting until
+  // the next shell goes or this one lands
   shot: (sr, length = 0.25) => {
+    // a long flight repeats the chirp at its usual pace rather than slowing it down
+    const cycles = Math.max(1, Math.round(length / 0.36));
+    const cycle = length / cycles;
     const steps = 8;
     const gap = 0.003;
-    const step = length / steps - gap;
+    const step = cycle / steps - gap;
     return square(
       sr,
-      steps * (step + gap),
-      (t) =>
-        1900 *
-        Math.pow(1300 / 1900, Math.min(steps - 1, Math.floor(t / (step + gap))) / (steps - 1)),
-      (t) => (t % (step + gap) < step ? 0.45 : 0),
+      length,
+      (t) => {
+        const k = Math.min(steps - 1, Math.floor((t % cycle) / (step + gap)));
+        return 1900 * Math.pow(1300 / 1900, k / (steps - 1));
+      },
+      (t) => ((t % cycle) % (step + gap) < step ? 0.45 : 0),
     );
   },
   // the salvo scene opening: a buzz of clicks, 50 a second, each a short burst of square wave
