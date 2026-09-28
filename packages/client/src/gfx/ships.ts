@@ -178,6 +178,12 @@ function drawFire(
   if (f !== 2) ctx.fillRect(x, y - 2 * scale, scale, scale);
 }
 
+/** The visible width of a ship's sprite, in sprite pixels. */
+export function shipWidth(faction: Faction, cls: ShipClass): number {
+  const s = sprite(faction, cls);
+  return s.x1 - s.x0 + 1;
+}
+
 /** Draws a ship (or its SOS) centred on `cx`, by its visible pixels rather than its sprite box. */
 export function drawShipCentred(
   ctx: CanvasRenderingContext2D,
