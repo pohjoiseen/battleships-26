@@ -101,27 +101,42 @@ function hitSpot(rng: Rng, shipId: number, faction: Faction) {
   };
 }
 
+/** Whether a splash at (x, y) would come down alongside a ship, on our bow, or at the frame. */
+function blocked(x: number, y: number, faction: Faction): boolean {
+  if (x < WIN.x + 12 || x > WIN.x + WIN.w - 12 || y < HORIZON + 3) return true;
+  // our bow widens from its tip towards us
+  if (y >= BOW_TIP.y - 6 && Math.abs(x - BOW_TIP.x) < 24 + (y - BOW_TIP.y) * 2.2) return true;
+  // at a ship's own depth, not within 12 px of its ends; short of it or beyond it is fine,
+  // as splashes are drawn in depth order
+  return FLEET.some((spec) => {
+    const slot = slotOf(spec.id);
+    const half = shipWidth(faction, spec.cls) / 2 + 12;
+    return Math.abs(y - slot.waterline) <= 6 && Math.abs(x - slot.cx) < half;
+  });
+}
+
+/** Where a miss comes down: often near a ship, sometimes in open water, never on one. */
 function missSpot(rng: Rng, faction: Faction) {
-  if (rng.next() < 0.6) {
-    // just short of, beyond, or beside one of the ships
-    const id = rng.int(FLEET.length);
-    const slot = slotOf(id);
-    const half = shipWidth(faction, FLEET[id]!.cls) / 2;
-    const side = rng.int(2) === 0 ? -1 : 1;
-    const x = slot.cx + side * (half + 4 + rng.int(16));
-    return {
-      x: Math.round(Math.min(WIN.x + WIN.w - 8, Math.max(WIN.x + 8, x))),
-      y: slot.waterline + rng.int(5) - 1,
-      row: slot.row,
-    };
+  for (;;) {
+    let x: number;
+    let y: number;
+    if (rng.next() < 0.6) {
+      // short of, beyond, or beside one of the ships
+      const id = rng.int(FLEET.length);
+      const slot = slotOf(id);
+      const w = shipWidth(faction, FLEET[id]!.cls);
+      x = slot.cx + (rng.next() - 0.5) * (w + 60);
+      const r = rng.int(3);
+      y = slot.waterline + (r === 0 ? -7 - rng.int(9) : r === 1 ? 7 + rng.int(10) : rng.int(5) - 2);
+    } else {
+      x = WIN.x + 12 + rng.int(WIN.w - 24);
+      y = HORIZON + 3 + rng.int(84);
+    }
+    x = Math.round(x);
+    // the splash is bigger nearer to us
+    if (!blocked(x, y, faction))
+      return { x, y, row: y < ROWS[1]! - 12 ? (0 as const) : (1 as const) };
   }
-  // open water
-  const y = HORIZON + 6 + rng.int(70);
-  return {
-    x: WIN.x + 10 + rng.int(WIN.w - 20),
-    y,
-    row: y < ROWS[1]! - 14 ? (0 as const) : (1 as const),
-  };
 }
 
 export function drawSalvo(
@@ -156,41 +171,56 @@ export function drawSalvo(
   for (const e of events) if (e.ship !== null && elapsed >= e.impact) landed[e.ship]!++;
   const sunkAt = at.map((t) => (t !== null && elapsed >= t ? t : null));
 
-  for (const row of [0, 1] as const) {
-    for (const spec of FLEET) {
-      const slot = slotOf(spec.id);
-      if (slot.row !== row || before[spec.id]! >= shipSize(spec.id)) continue;
-      const size = shipSize(spec.id);
-      const look: ShipLook = {
-        cls: spec.cls,
-        faction,
-        hits: Math.min(before[spec.id]! + landed[spec.id]!, size - 1),
-        size,
-      };
-      // the flash turns every ship into a silhouette, then yellow; the one hit keeps flickering
-      const mine = struck.filter((e) => e.ship === spec.id).map((e) => elapsed - e.impact);
-      const since = Math.min(...mine);
-      if (sinceHit < 60) look.tint = C.black;
-      else if (sinceHit < 160) look.tint = C.brightYellow;
-      else if (since < 450 && Math.floor(since / 60) % 2 === 0) look.tint = C.brightCyan;
-      const shake = since < 300 ? (Math.floor(since / 40) % 2 === 0 ? 1 : -1) : 0;
-      const sunk = sunkAt[spec.id];
-      if (sunk !== null && sunk !== undefined) {
-        const p = (elapsed - sunk - SINK_DELAY * k) / (SINK_TIME * k);
-        if (p >= 1) continue;
-        drawSinking(ctx, look, slot.cx + shake, slot.waterline, Math.max(0, p), elapsed);
-        continue;
-      }
-      drawWake(ctx, slot.cx, slot.waterline, shipWidth(faction, spec.cls));
-      drawShipCentred(ctx, look, slot.cx + shake, slot.waterline, elapsed);
-    }
-    for (const [n, e] of events.entries()) {
-      if (e.row !== row || elapsed < e.impact || elapsed > e.end) continue;
-      const p = (elapsed - e.impact) / (e.end - e.impact);
-      if (e.ship === null) drawSplash(ctx, e.x, e.y, p, row, salvo.seed + n);
-      else drawExplosion(ctx, e.x, e.y, p, salvo.seed + n);
-    }
+  // ships, splashes and explosions, drawn from the back to the front, so a splash beyond a
+  // ship is hidden by it and one short of it hides it
+  const layers: { depth: number; draw: () => void }[] = [];
+  for (const spec of FLEET) {
+    const slot = slotOf(spec.id);
+    if (before[spec.id]! >= shipSize(spec.id)) continue;
+    const size = shipSize(spec.id);
+    const look: ShipLook = {
+      cls: spec.cls,
+      faction,
+      hits: Math.min(before[spec.id]! + landed[spec.id]!, size - 1),
+      size,
+    };
+    // the flash turns every ship into a silhouette, then yellow; the one hit keeps flickering
+    const mine = struck.filter((e) => e.ship === spec.id).map((e) => elapsed - e.impact);
+    const since = Math.min(...mine);
+    if (sinceHit < 60) look.tint = C.black;
+    else if (sinceHit < 160) look.tint = C.brightYellow;
+    else if (since < 450 && Math.floor(since / 60) % 2 === 0) look.tint = C.brightCyan;
+    const shake = since < 300 ? (Math.floor(since / 40) % 2 === 0 ? 1 : -1) : 0;
+    const sunk = sunkAt[spec.id];
+    layers.push({
+      depth: slot.waterline,
+      draw: () => {
+        if (sunk !== null && sunk !== undefined) {
+          const p = (elapsed - sunk - SINK_DELAY * k) / (SINK_TIME * k);
+          if (p < 1)
+            drawSinking(ctx, look, slot.cx + shake, slot.waterline, Math.max(0, p), elapsed);
+          return;
+        }
+        drawWake(ctx, slot.cx, slot.waterline, shipWidth(faction, spec.cls));
+        drawShipCentred(ctx, look, slot.cx + shake, slot.waterline, elapsed);
+      },
+    });
   }
+  for (const [n, e] of events.entries()) {
+    if (elapsed < e.impact || elapsed > e.end) continue;
+    const p = (elapsed - e.impact) / (e.end - e.impact);
+    layers.push(
+      e.ship === null
+        ? { depth: e.y, draw: () => drawSplash(ctx, e.x, e.y, p, e.row, salvo.seed + n) }
+        : // an explosion is on its ship, in front of it
+          {
+            depth: slotOf(e.ship).waterline + 0.5,
+            draw: () => drawExplosion(ctx, e.x, e.y, p, salvo.seed + n),
+          },
+    );
+  }
+  layers.sort((a, b) => a.depth - b.depth);
+  for (const l of layers) l.draw();
 
   const firing = events.find((e) => elapsed >= e.launch && elapsed < e.launch + 120);
   drawBow(ctx, factionOf(salvo.shooter), firing ? elapsed - firing.launch : null);
