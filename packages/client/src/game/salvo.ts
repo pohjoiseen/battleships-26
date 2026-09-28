@@ -2,7 +2,7 @@ import { createRng, FLEET, type PlayerIndex, type PlayerView, shipSize } from '@
 import { drawText } from '../gfx/font.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LH, LW } from '../gfx/screen.ts';
-import { drawShip } from '../gfx/ships.ts';
+import { drawShip, factionOf, type ShipLook } from '../gfx/ships.ts';
 
 type SalvoView = NonNullable<PlayerView['lastSalvo']>;
 
@@ -101,12 +101,19 @@ export function drawSalvo(
     const struck = events.find(
       (e) => e.ship === spec.id && elapsed >= e.impact && elapsed < e.impact + 400,
     );
-    const colour =
-      struck && Math.floor(elapsed / 60) % 2 === 0 ? C.brightWhite : playerColour(defender);
-    const damage = (before[spec.id]! + landed[spec.id]!) / shipSize(spec.id);
+    const hits = before[spec.id]! + landed[spec.id]!;
+    const size = shipSize(spec.id);
     // a sunk ship just leaves empty sea here (the side panel is where its SOS shows)
-    if (damage >= 1) continue;
-    drawShip(ctx, spec.cls, slot.x, slot.waterline, colour, damage, slot.scale);
+    if (hits >= size) continue;
+    const look: ShipLook = {
+      cls: spec.cls,
+      faction: factionOf(defender),
+      hits,
+      size,
+      scale: slot.scale,
+    };
+    if (struck && Math.floor(elapsed / 60) % 2 === 0) look.tint = C.brightWhite;
+    drawShip(ctx, look, slot.x, slot.waterline, elapsed);
   }
 
   for (const [n, e] of events.entries()) {

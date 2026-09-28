@@ -10,7 +10,7 @@ import {
 import { drawDigits, drawText, textWidth } from '../gfx/font.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LW } from '../gfx/screen.ts';
-import { drawShip } from '../gfx/ships.ts';
+import { drawShip, factionOf, type ShipLook } from '../gfx/ships.ts';
 import { cellOrigin, type Geometry, slotRect } from './geometry.ts';
 
 export interface ShipMarks {
@@ -112,11 +112,16 @@ export interface PanelOptions {
 export function drawPanel(ctx: CanvasRenderingContext2D, g: Geometry, p: PanelOptions, t: number) {
   for (const spec of FLEET) {
     const r = slotRect(g, spec.id);
-    let colour = playerColour(p.owner);
-    if (p.selected === spec.id) colour = C.brightBlue;
-    if (p.conflicts?.has(spec.id) && blink(t, 300)) colour = C.brightWhite;
-    const damage = p.damage[spec.id]! / shipSize(spec.id);
-    drawShip(ctx, spec.cls, r.x + 12, r.y + r.h - 8, colour, damage, 1, g.mirrored);
+    const look: ShipLook = {
+      cls: spec.cls,
+      faction: factionOf(p.owner),
+      hits: p.damage[spec.id]!,
+      size: shipSize(spec.id),
+      flip: g.mirrored,
+    };
+    if (p.selected === spec.id) look.outline = C.brightCyan;
+    if (p.conflicts?.has(spec.id) && blink(t, 300)) look.tint = C.brightWhite;
+    drawShip(ctx, look, r.x + 11, r.y + r.h - 8, t);
   }
 }
 
