@@ -200,3 +200,55 @@ ${rects.join('\n')}
 `;
 writeFileSync(new URL('../packages/client/public/logo.svg', import.meta.url), svg);
 console.log(`logo.svg: ${W}x${H}, ${rects.length} rects`);
+
+// ---- favicon: a warship against the sunset, 16x16 ----
+
+const ICON = [
+  'KKKKKKKKKKKKKKKK',
+  'KKKKKKKKKKKKKKKK',
+  'KbKKKbKKKbKKKbKK',
+  'bKbKbKdKbKbKbKbK',
+  'bbbbbbdbbbbbbbbb',
+  'MbMbMbdbMbMbMbMb',
+  'MMMMMdddMMMMYYMM',
+  'RMRMRRgRRMRYYYYM',
+  'RRRRRgggRRYYYYYY',
+  'YRYRgggggRYYYYYY',
+  'RggggggggggggggY',
+  'BBrrrrrrrrrrrrBB',
+  'BBBddddddddddBBB',
+  'BwwBBBBBBBBBBwwB',
+  'BBBBBBBwBBBBBBBB',
+  'BBBBBBBBBBBBwBBB',
+];
+const ICON_COLOURS: Record<string, string> = {
+  K: BLACK,
+  b: BLUE,
+  M: '#d700d7',
+  R: DARK_RED,
+  Y: YELLOW,
+  g: '#b2bcc4',
+  d: '#565f66',
+  r: RED,
+  B: BRIGHT_BLUE,
+  w: WHITE,
+};
+const iconRects: string[] = [];
+ICON.forEach((row, y) => {
+  let x0 = 0;
+  while (x0 < row.length) {
+    let x1 = x0 + 1;
+    while (x1 < row.length && row[x1] === row[x0]) x1++;
+    const c = ICON_COLOURS[row[x0]!]!;
+    iconRects.push(`<rect x="${x0}" y="${y}" width="${x1 - x0}" height="1" fill="${c}"/>`);
+    x0 = x1;
+  }
+});
+writeFileSync(
+  new URL('../packages/client/public/favicon.svg', import.meta.url),
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" shape-rendering="crispEdges">
+${iconRects.join('\n')}
+</svg>
+`,
+);
+console.log(`favicon.svg: 16x16, ${iconRects.length} rects`);
