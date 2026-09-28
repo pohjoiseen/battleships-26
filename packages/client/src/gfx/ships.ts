@@ -178,6 +178,25 @@ function drawFire(
   if (f !== 2) ctx.fillRect(x, y - 2 * scale, scale, scale);
 }
 
+/** Draws a ship (or its SOS) centred on `cx`, by its visible pixels rather than its sprite box. */
+export function drawShipCentred(
+  ctx: CanvasRenderingContext2D,
+  look: ShipLook,
+  cx: number,
+  waterline: number,
+  t = 0,
+): void {
+  const scale = look.scale ?? 1;
+  if (look.hits >= look.size) {
+    drawSos(ctx, cx, waterline - 8 * scale, scale);
+    return;
+  }
+  const s = sprite(look.faction, look.cls);
+  const left = look.flip ? s.w - 1 - s.x1 : s.x0;
+  const width = s.x1 - s.x0 + 1;
+  drawShip(ctx, look, Math.round(cx - (width * scale) / 2) - left * scale, waterline, t);
+}
+
 export function drawSos(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale = 1): void {
   ctx.fillStyle = C.brightWhite;
   const r = 7 * scale;

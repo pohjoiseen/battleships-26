@@ -45,6 +45,9 @@ export interface Sprite {
   hullH: number;
   /** Spots where hits show, one per cell of the ship, as [x, y] on the sprite. */
   hitSpots: [number, number][];
+  /** First and last columns with any pixels in them. */
+  x0: number;
+  x1: number;
 }
 
 export const SPRITE_H = 34;
@@ -581,7 +584,12 @@ export function buildSprite(faction: Faction, cls: ShipClass): Sprite {
   const def = ART[faction][cls];
   const p = new Painter(def.w);
   const { hullH, hitSpots } = def.art(p);
+  const cols = Array.from({ length: p.w }, (_, x) => x).filter((x) =>
+    Array.from({ length: p.h }, (_, y) => p.get(x, y)).some((c) => c !== Ink.None),
+  );
   return {
+    x0: cols[0]!,
+    x1: cols[cols.length - 1]!,
     w: p.w,
     h: p.h,
     px: p.px,

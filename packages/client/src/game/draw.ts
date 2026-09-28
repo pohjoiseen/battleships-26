@@ -11,7 +11,7 @@ import { drawChart } from '../gfx/chart.ts';
 import { drawDigits, drawText, textWidth } from '../gfx/font.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LW } from '../gfx/screen.ts';
-import { drawShip, factionOf, type ShipLook } from '../gfx/ships.ts';
+import { drawShipCentred, factionOf, type ShipLook } from '../gfx/ships.ts';
 import { cellOrigin, type Geometry, slotRect } from './geometry.ts';
 
 export interface ShipMarks {
@@ -118,7 +118,7 @@ export function drawPanel(ctx: CanvasRenderingContext2D, g: Geometry, p: PanelOp
     };
     if (p.selected === spec.id) look.outline = C.brightCyan;
     if (p.conflicts?.has(spec.id) && blink(t, 300)) look.tint = C.brightWhite;
-    drawShip(ctx, look, r.x + 11, r.y + r.h - 8, t);
+    drawShipCentred(ctx, look, r.x + r.w / 2, r.y + r.h - 8, t);
   }
 }
 
