@@ -74,87 +74,29 @@ button {
   padding: 6px 10px;
 }
 
-body.landing main {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 48px 16px;
-  text-align: center;
+body.landing {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
 }
 
-h1 {
-  font-size: clamp(28px, 8vw, 56px);
-  margin: 0 0 40px;
-  letter-spacing: 2px;
+/* the menu is drawn on the canvas; these buttons lie invisibly over its rows */
+.stage {
+  position: relative;
 }
 
-h1 .r {
-  color: var(--red);
-}
-
-h1 .y {
-  color: var(--yellow);
-}
-
-#menu ol {
-  list-style: none;
-  padding: 24px;
-  margin: 0 auto;
-  display: inline-grid;
-  gap: 18px;
-  border: 3px solid var(--red);
-  text-align: left;
-  counter-reset: item;
-}
-
-#menu li {
-  counter-increment: item;
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-#menu li::before {
-  content: counter(item);
-  color: var(--bright-cyan);
-}
-
-#menu li button {
-  background: none;
-  border: none;
-  color: var(--white);
-  padding: 0;
-  font-size: 14px;
-}
-
-#menu li button:hover,
-#menu li button:focus-visible {
-  color: var(--yellow);
-  outline: none;
-}
-
-#menu label {
-  font-size: 14px;
-  cursor: pointer;
-}
-
-#menu input[type='checkbox'] {
+#menu button {
   position: absolute;
   opacity: 0;
+  margin: 0;
+  padding: 0;
 }
 
-#menu label:focus-within {
-  color: var(--yellow);
-}
-
-#status {
-  min-height: 1.5em;
-  color: var(--bright-cyan);
-  font-size: 12px;
-}
-
-.credits {
-  margin-top: 48px;
-  font-size: 8px;
-  line-height: 1.8;
-  color: #808080;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

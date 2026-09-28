@@ -7,23 +7,17 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body class="landing">
-    <main>
-      <h1><span class="r">BATTLE</span> <span class="y">SHIPS</span></h1>
-      <form id="menu">
-        <ol>
-          <li><button type="submit" name="mode" value="1p">1 PLAYER</button></li>
-          <li><button type="submit" name="mode" value="2p">2 PLAYERS</button></li>
-          <li>
-            <label>
-              <input id="salvo" type="checkbox" checked />
-              SALVO FIRE - <span id="salvo-state">ON</span>
-            </label>
-          </li>
-        </ol>
-      </form>
-      <p id="status" role="status"></p>
-      <p class="credits">A REMAKE OF BATTLE SHIPS (HIT-PAK, 1987) FOR THE ZX SPECTRUM</p>
-    </main>
+    <h1 class="sr-only">Battle Ships</h1>
+    <div class="stage">
+      <canvas id="screen" aria-hidden="true"></canvas>
+      <nav id="menu" aria-label="Menu">
+        <button type="button">1 PLAYER</button>
+        <button type="button">2 PLAYERS</button>
+        <button type="button" aria-pressed="true">SALVO FIRE - ON</button>
+        <button type="button" aria-pressed="true">SOUND - ON</button>
+      </nav>
+    </div>
+    <p id="status" class="sr-only" role="status"></p>
     <script type="module" src="/src/landing.ts"></script>
   </body>
 </html>

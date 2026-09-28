@@ -24,6 +24,7 @@ npm test             # unit + server integration tests (Vitest)
 npm run test:e2e     # browser tests (Playwright): full 1P and 2P games, placement, refresh
 npm run typecheck
 npm run lint
+npm run logo         # regenerate packages/client/public/logo.svg from scripts/make-logo.ts
 ```
 
 ## Layout

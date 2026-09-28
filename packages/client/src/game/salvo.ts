@@ -278,7 +278,7 @@ function drawShell(ctx: CanvasRenderingContext2D, e: ShotEvent, p: number) {
 }
 
 /** A column of water thrown up by a miss, falling back as spray. */
-function drawSplash(
+export function drawSplash(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,

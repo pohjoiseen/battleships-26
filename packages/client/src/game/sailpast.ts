@@ -111,7 +111,7 @@ function backdropImage(): HTMLCanvasElement {
 }
 
 /** The backdrop plus the moving water: wave dashes, and the sun's glitter path. */
-function drawScene(ctx: CanvasRenderingContext2D, t: number) {
+export function drawScene(ctx: CanvasRenderingContext2D, t: number) {
   ctx.drawImage(backdropImage(), 0, 0);
   const rng = createRng(3);
   for (let k = 0; k < 110; k++) {
