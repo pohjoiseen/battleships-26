@@ -47,7 +47,8 @@ Checked against the original (playthrough video in `zx-screenshots/`) where the 
   looks the same after a half turn, so it has two orientations.
 - Ships may not touch, not even at a corner.
 - Placement starts from a random layout; both players place at the same time.
-- 4 shots per surviving ship (salvo fire), or always 4 per turn with salvo fire off. All shots in a
+- 4 shots per surviving ship (salvo fire), or always 4 per turn with salvo fire off. Placing the
+  last shot of a turn fires the salvo (there's no FIRE button, as in the original). All shots in a
   salvo resolve together; no cells are marked automatically around sunk ships.
 - The first player is picked at random.
 - The salvo animation shows which ship each hit struck, in shuffled order, so it doesn't reveal
