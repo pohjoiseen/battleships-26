@@ -367,6 +367,44 @@ function drawExplosion(
 
 /** Our own bow in the foreground, with the gun and the jack of the shooter's side. */
 function drawBow(ctx: CanvasRenderingContext2D, faction: Faction, sinceFire: number | null) {
+  const img = bowImage(faction);
+  ctx.drawImage(img, BOW_BOX.x, BOW_BOX.y);
+  // the barrel pointing out over the bow; it kicks back when it fires
+  const cx = BOW_TIP.x;
+  const top = BOW_TIP.y + TURRET_DY;
+  const kick = sinceFire !== null && sinceFire < 80 ? 2 : 0;
+  ctx.fillStyle = C.grey;
+  ctx.fillRect(cx - 1, MUZZLE.y + kick, 3, top - MUZZLE.y - kick);
+  ctx.fillStyle = C.white;
+  ctx.fillRect(cx - 1, MUZZLE.y + kick, 1, top - MUZZLE.y - kick);
+  ctx.fillStyle = C.black;
+  ctx.fillRect(cx, MUZZLE.y + kick, 1, 1);
+  if (sinceFire !== null && sinceFire < 110) {
+    ctx.fillStyle = sinceFire < 50 ? C.brightWhite : C.brightYellow;
+    ctx.fillRect(cx - 2, MUZZLE.y - 4, 5, 3);
+    ctx.fillRect(cx - 1, MUZZLE.y - 6, 3, 2);
+    ctx.fillStyle = '#ff7a00';
+    ctx.fillRect(cx - 3, MUZZLE.y - 2, 1, 1);
+    ctx.fillRect(cx + 3, MUZZLE.y - 2, 1, 1);
+  }
+}
+
+/** The turret's top, below the bow's tip. */
+const TURRET_DY = 33;
+/** The part of the screen the bow covers. */
+const BOW_BOX = { x: BOW_TIP.x - 105, y: BOW_TIP.y - 8, w: 211, h: WIN.y + WIN.h - BOW_TIP.y + 8 };
+const bowImages = new Map<Faction, HTMLCanvasElement>();
+
+/** Everything on the bow that doesn't move, drawn once for each side's jack. */
+function bowImage(faction: Faction): HTMLCanvasElement {
+  let img = bowImages.get(faction);
+  if (img) return img;
+  img = document.createElement('canvas');
+  img.width = BOW_BOX.w;
+  img.height = BOW_BOX.h;
+  const ctx = img.getContext('2d')!;
+  // draw in screen coordinates
+  ctx.translate(-BOW_BOX.x, -BOW_BOX.y);
   const { x: cx, y: tip } = BOW_TIP;
   const bottom = WIN.y + WIN.h;
   for (let y = tip; y < bottom; y++) {
@@ -402,8 +440,8 @@ function drawBow(ctx: CanvasRenderingContext2D, faction: Faction, sinceFire: num
     ctx.fillStyle = C.grey;
     ctx.fillRect(cx + i, y + 1, 1, 2);
   }
-  // the gun: a rounded turret with its barrel pointing out over the bow; it kicks back when it fires
-  const top = tip + 33;
+  // the gun's rounded turret
+  const top = tip + TURRET_DY;
   const widths = [12, 18, 22, 24, 26, 26, 26, 26, 26, 26, 26];
   widths.forEach((w, j) => {
     const x0 = cx - w / 2;
@@ -414,25 +452,12 @@ function drawBow(ctx: CanvasRenderingContext2D, faction: Faction, sinceFire: num
   });
   ctx.fillStyle = C.brightWhite;
   ctx.fillRect(cx - 5, top, 6, 1);
-  const kick = sinceFire !== null && sinceFire < 80 ? 2 : 0;
-  ctx.fillStyle = C.grey;
-  ctx.fillRect(cx - 1, MUZZLE.y + kick, 3, top - MUZZLE.y - kick);
-  ctx.fillStyle = C.white;
-  ctx.fillRect(cx - 1, MUZZLE.y + kick, 1, top - MUZZLE.y - kick);
-  ctx.fillStyle = C.black;
-  ctx.fillRect(cx, MUZZLE.y + kick, 1, 1);
-  if (sinceFire !== null && sinceFire < 110) {
-    ctx.fillStyle = sinceFire < 50 ? C.brightWhite : C.brightYellow;
-    ctx.fillRect(cx - 2, MUZZLE.y - 4, 5, 3);
-    ctx.fillRect(cx - 1, MUZZLE.y - 6, 3, 2);
-    ctx.fillStyle = '#ff7a00';
-    ctx.fillRect(cx - 3, MUZZLE.y - 2, 1, 1);
-    ctx.fillRect(cx + 3, MUZZLE.y - 2, 1, 1);
-  }
   // jackstaff at the stem, flying the shooter's jack
   ctx.fillStyle = C.grey;
   ctx.fillRect(cx, tip - 7, 1, 7);
   drawJack(ctx, cx - 5, tip - 7, faction);
+  bowImages.set(faction, img);
+  return img;
 }
 
 function drawJack(ctx: CanvasRenderingContext2D, x: number, y: number, faction: Faction) {
