@@ -7,6 +7,7 @@ import {
   SEA_MISS,
   shipSize,
 } from '@bs/shared';
+import { drawChart } from '../gfx/chart.ts';
 import { drawDigits, drawText, textWidth } from '../gfx/font.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LW } from '../gfx/screen.ts';
@@ -20,6 +21,8 @@ export interface ShipMarks {
 
 export interface SeaContent {
   owner: PlayerIndex;
+  /** The game's chart seed (see PlayerView). */
+  chartSeed: number;
   shots: number[];
   pending?: readonly number[];
   ships?: ShipMarks[];
@@ -33,10 +36,8 @@ export const blink = (t: number, periodMs = 500) => Math.floor(t / (periodMs / 2
 
 export function drawSea(ctx: CanvasRenderingContext2D, g: Geometry, sea: SeaContent, t: number) {
   const { seaX, seaY, cell } = g;
-  // the chart's paper edge, with room for the axis labels
-  const labelSide = g.mirrored ? seaX + SEA_W : seaX - 12;
-  ctx.fillStyle = C.cyan;
-  ctx.fillRect(Math.min(seaX, labelSide) - 2, seaY - 4, SEA_W + 16, SEA_W + 14);
+  // each player's sea gets its own coastline
+  drawChart(ctx, g, (sea.chartSeed + sea.owner * 7919) >>> 0);
 
   for (let y = 0; y < BOARD_SIZE; y++) {
     for (let x = 0; x < BOARD_SIZE; x++) {

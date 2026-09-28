@@ -246,7 +246,12 @@ export class App {
       [`PLAYER ${me + 1}`, playerColour(me)],
       [ready ? ' IS READY' : ' POSITION YOUR SHIPS', C.brightCyan],
     ]);
-    drawSea(ctx, this.g, { owner: me, shots: v.seas[me].shots, ships }, this.now);
+    drawSea(
+      ctx,
+      this.g,
+      { owner: me, chartSeed: v.chartSeed, shots: v.seas[me].shots, ships },
+      this.now,
+    );
     drawPanel(
       ctx,
       this.g,
@@ -298,6 +303,7 @@ export class App {
       this.g,
       {
         owner: defender,
+        chartSeed: v.chartSeed,
         shots: v.seas[defender].shots,
         pending,
         cursor: aiming ? this.cursor : mine ? null : this.opponentCursor,
@@ -341,7 +347,12 @@ export class App {
     const loser = other(winner);
     if (this.screenName() === 'over-message') {
       this.g = geometry(loser === 1);
-      drawSea(ctx, this.g, { owner: loser, shots: v.seas[loser].shots }, this.now);
+      drawSea(
+        ctx,
+        this.g,
+        { owner: loser, chartSeed: v.chartSeed, shots: v.seas[loser].shots },
+        this.now,
+      );
       drawPanel(ctx, this.g, { owner: loser, damage: v.seas[loser].damage }, this.now);
       const lines: [string, string][] =
         loser === v.you
@@ -368,7 +379,7 @@ export class App {
       colour: C.magenta,
     }));
     drawTitle(ctx, [['THE WINNERS FLEET', C.brightCyan]]);
-    drawSea(ctx, this.g, { owner: winner, shots, ships }, this.now);
+    drawSea(ctx, this.g, { owner: winner, chartSeed: v.chartSeed, shots, ships }, this.now);
     drawPanel(ctx, this.g, { owner: winner, damage: v.seas[winner].damage }, this.now);
     this.buttons = buttonRow(this.g, [{ id: 'new', label: 'NEW GAME', enabled: true }]);
     drawHint(
