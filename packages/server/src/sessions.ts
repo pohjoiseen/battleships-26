@@ -37,6 +37,8 @@ export class Sessions {
       rng: createRng(seed),
       ai: mode === '1p' ? AI_PLAYERS.simple : null,
       timeScale: this.opts.timeScale,
+      // derived from the seed rather than drawn from the rng, so seeded games play the same
+      chartSeed: (seed ^ 0x5bd1e995) >>> 0,
       ...(invite ? { inviteUrl: `/join/${invite}` } : {}),
     });
     const token = newToken();

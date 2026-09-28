@@ -30,6 +30,8 @@ export interface RoomOptions {
   /** Scales all waits (salvo animation, AI pacing); tests run with a small value. */
   timeScale: number;
   inviteUrl?: string;
+  /** Seeds cosmetic things both players should see alike, such as the charts' coastlines. */
+  chartSeed?: number;
 }
 
 /** One game: owns the state, applies player actions, and keeps every connection up to date. */
@@ -157,6 +159,7 @@ export class Room {
       },
       inviteUrl: this.opts.inviteUrl,
       timeScale: this.opts.timeScale,
+      chartSeed: this.opts.chartSeed ?? 0,
     });
   }
 

@@ -26,7 +26,11 @@ const layoutA: Layout = [
 const layoutB: Layout = layoutA.map((p) => ({ ...p, x: p.x + 1 }));
 
 const rng = () => createRng(42);
-const room = { opponent: { kind: 'human' as const, joined: true, connected: true }, timeScale: 1 };
+const room = {
+  opponent: { kind: 'human' as const, joined: true, connected: true },
+  timeScale: 1,
+  chartSeed: 0,
+};
 
 function started(salvo = true): GameState {
   const r = rng();

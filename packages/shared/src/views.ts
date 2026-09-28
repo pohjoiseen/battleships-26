@@ -29,6 +29,8 @@ export interface RoomInfo {
   /** Only sent to player 1 until player 2 has joined. */
   inviteUrl?: string;
   timeScale: number;
+  /** Seeds the look of the charts (their ragged coastlines); the same for both players. */
+  chartSeed: number;
 }
 
 /** Everything one player is allowed to know. Never contains the opponent's ship positions. */
@@ -52,6 +54,8 @@ export interface PlayerView {
   revealed: [Layout, Layout] | null;
   opponent: OpponentInfo;
   inviteUrl?: string;
+  /** Seeds the look of the charts (their ragged coastlines); the same for both players. */
+  chartSeed: number;
 }
 
 export function playerView(state: GameState, you: PlayerIndex, room: RoomInfo): PlayerView {
@@ -77,6 +81,7 @@ export function playerView(state: GameState, you: PlayerIndex, room: RoomInfo): 
       : null,
     revealed: over ? [state.players[0].layout!, state.players[1].layout!] : null,
     opponent: room.opponent,
+    chartSeed: room.chartSeed,
     ...(room.inviteUrl && you === 0 && !room.opponent.joined ? { inviteUrl: room.inviteUrl } : {}),
   };
 }
