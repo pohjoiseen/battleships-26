@@ -184,6 +184,11 @@ export function shipWidth(faction: Faction, cls: ShipClass): number {
   return s.x1 - s.x0 + 1;
 }
 
+/** Where a ship's visible pixels start within its sprite. */
+export function spriteX0(faction: Faction, cls: ShipClass): number {
+  return sprite(faction, cls).x0;
+}
+
 /** Draws a ship (or its SOS) centred on `cx`, by its visible pixels rather than its sprite box. */
 export function drawShipCentred(
   ctx: CanvasRenderingContext2D,

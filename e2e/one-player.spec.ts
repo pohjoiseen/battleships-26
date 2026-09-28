@@ -29,6 +29,11 @@ test('a whole game against the computer', async ({ page }) => {
   const end = await view(page);
   expect(end.phase).toBe('over');
   expect(end.revealed).not.toBeNull();
+  // then the victory sail past, and the battle report
+  await page.mouse.click(600, 450);
+  await waitForScreen(page, 'sailpast');
+  await page.mouse.click(600, 450);
+  await waitForScreen(page, 'report');
   await clickButton(page, 'new');
   await page.waitForURL(/\/$/);
   expect(errors).toEqual([]);

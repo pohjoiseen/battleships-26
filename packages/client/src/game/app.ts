@@ -33,12 +33,26 @@ import {
   type ShipMarks,
 } from './draw.ts';
 import { cellAt, cellCentre, type Geometry, geometry, slotAt } from './geometry.ts';
+import { drawReport, drawSailPast, sailPastDuration } from './sailpast.ts';
 import { drawSalvo, timeline } from './salvo.ts';
 
-type ScreenName = 'connecting' | 'placing' | 'aiming' | 'salvo' | 'over-message' | 'winners';
+type ScreenName =
+  | 'connecting'
+  | 'placing'
+  | 'aiming'
+  | 'salvo'
+  | 'over-message'
+  | 'winners'
+  | 'sailpast'
+  | 'report';
+
+/** The screens after the last salvo, in order; each moves on by itself or on a click. */
+type OverStage = 'over-message' | 'winners' | 'sailpast' | 'report';
+const OVER_STAGES: readonly OverStage[] = ['over-message', 'winners', 'sailpast', 'report'];
 
 const BANNER_MS = 1400;
 const OVER_MESSAGE_MS = 4000;
+const WINNERS_MS = 7000;
 const CURSOR_SEND_MS = 50;
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 'S'}`;
@@ -81,8 +95,8 @@ export class App {
   private salvoKey = '';
   private salvoStart = 0;
   private events: ReturnType<typeof timeline> = [];
-  private overStart = 0;
-  private skipOverMessage = false;
+  private overStage: OverStage = 'over-message';
+  private stageStart = 0;
 
   constructor(private readonly screen: Screen) {}
 
@@ -123,8 +137,8 @@ export class App {
     }
 
     if (v.phase === 'over' && prev?.phase !== 'over') {
-      this.overStart = now;
-      this.skipOverMessage = false;
+      this.overStage = 'over-message';
+      this.stageStart = now;
     }
   }
 
@@ -160,14 +174,13 @@ export class App {
       case 'resolving':
         return 'salvo';
       case 'over':
-        return !this.skipOverMessage && this.now - this.overStart < OVER_MESSAGE_MS
-          ? 'over-message'
-          : 'winners';
+        return this.overStage;
     }
   }
 
   frame(now: number): void {
     this.now = now;
+    this.advanceOverStage();
     const ctx = this.screen.ctx;
     ctx.fillStyle = C.black;
     ctx.fillRect(0, 0, LW, LH);
@@ -200,6 +213,16 @@ export class App {
         case 'over-message':
         case 'winners':
           this.drawOver(ctx, v);
+          break;
+        case 'sailpast':
+          drawSailPast(ctx, v.winner!, v.seas[v.winner!].damage, now - this.stageStart);
+          drawText(ctx, 'CLICK TO SKIP', LW / 2, LH - 10, C.grey, { align: 'center' });
+          break;
+        case 'report':
+          drawReport(ctx, v, now - this.stageStart);
+          this.buttons = [
+            { id: 'new', label: 'NEW GAME', x: LW / 2 - 60, y: 210, w: 120, h: 16, enabled: true },
+          ];
           break;
         default:
       }
@@ -390,6 +413,34 @@ export class App {
     );
   }
 
+  private isOver(screen: ScreenName): screen is OverStage {
+    return (OVER_STAGES as readonly string[]).includes(screen);
+  }
+
+  /** Moves on through the end screens when each has run its time. */
+  private advanceOverStage(): void {
+    const v = this.view;
+    if (v?.phase !== 'over') return;
+    const elapsed = this.now - this.stageStart;
+    const limit =
+      this.overStage === 'over-message'
+        ? OVER_MESSAGE_MS
+        : this.overStage === 'winners'
+          ? WINNERS_MS
+          : this.overStage === 'sailpast'
+            ? sailPastDuration(v.winner!, v.seas[v.winner!].damage)
+            : Infinity;
+    if (elapsed >= limit) this.nextOverStage();
+  }
+
+  private nextOverStage(): void {
+    const k = OVER_STAGES.indexOf(this.overStage);
+    if (k < OVER_STAGES.length - 1) {
+      this.overStage = OVER_STAGES[k + 1]!;
+      this.stageStart = this.now;
+    }
+  }
+
   // ---- input ----
 
   pointerDown(x: number, y: number, button: number): void {
@@ -422,8 +473,8 @@ export class App {
         this.setCursor(cellIndex(cell));
         this.toggleShot(cellIndex(cell));
       }
-    } else if (screen === 'over-message') {
-      this.skipOverMessage = true;
+    } else if (this.isOver(screen)) {
+      this.nextOverStage();
     }
   }
 
@@ -498,8 +549,9 @@ export class App {
       } else return false;
       return true;
     }
-    if (screen === 'over-message' && (e.key === 'Enter' || e.key === ' ')) {
-      this.skipOverMessage = true;
+    if (this.isOver(screen) && (e.key === 'Enter' || e.key === ' ')) {
+      if (screen === 'report') this.press('new');
+      else this.nextOverStage();
       return true;
     }
     return false;
