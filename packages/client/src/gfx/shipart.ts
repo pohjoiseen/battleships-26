@@ -530,19 +530,19 @@ const usa: Record<ShipClass, { w: number; art: Art }> = {
         raise: 2,
       });
       // one long, boxy deckhouse with two square stacks side by side
-      p.block(18, 5, 38, 5, true);
+      p.block(18, 5, 40, 5, true);
       p.slopedBlock(48, 10, 10, 4, 2, true);
       p.funnel(26, 10, 6, 5);
       p.funnel(38, 10, 6, 6);
       p.lattice(51, 14, 9, 5);
       p.mast(51, 23, 6, 5);
-      p.mast(35, 16, 7, 3);
+      p.mast(41, 14, 9, 3);
       p.block(20, 10, 5, 3);
       // 5-inch guns fore and aft, box launcher
       p.turret(62, 6, 1, 5);
       p.turret(8, 5, -1, 5);
       p.rect(68, 7, 4, 2, Ink.Mid);
-      usFlag(p, 35, 18, 4);
+      usFlag(p, 41, 18, 4);
       return { hullH: 5, hitSpots: spots(3, 12, 70, 3, [3, 8, 3]) };
     },
   },
