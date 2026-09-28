@@ -562,8 +562,6 @@ const usa: Record<ShipClass, { w: number; art: Art }> = {
       for (let x = 0; x < 62; x++) for (let y = 0; y < lift; y++) p.dot(x, y, Ink.None);
       p.vline(12, 0, lift + 1, Ink.Dark);
       p.vline(50, 0, lift + 1, Ink.Dark);
-      p.hline(9, 0, 7, Ink.Dark);
-      p.hline(47, 0, 7, Ink.Dark);
       p.oy = 1;
       // deckhouse, mast, gun, missile canisters
       p.slopedBlock(22, lift + 4, 16, 4, 3, true);
@@ -572,7 +570,7 @@ const usa: Record<ShipClass, { w: number; art: Art }> = {
       p.turret(44, lift + 5, 1, 4);
       p.tube(6, lift + 4, 16, lift + 6);
       usFlag(p, 28, lift + 8, 5);
-      return { hullH: 0, hitSpots: spots(2, 14, 46, lift + 1) };
+      return { hullH: 7, hitSpots: spots(2, 14, 46, lift + 1) };
     },
   },
 };
