@@ -160,13 +160,20 @@ export function buttonAt(buttons: readonly Button[], x: number, y: number): Butt
 }
 
 /** Title in segments, e.g. [['PLAYER 1', red], [' FIRE 24 SHOTS AT NME', cyan]], centred. */
-export function drawTitle(ctx: CanvasRenderingContext2D, segments: [string, string][]) {
+export function drawTitle(
+  ctx: CanvasRenderingContext2D,
+  segments: [string, string][],
+  /** Only this many characters, while it types out. */
+  chars = Infinity,
+) {
   const opts = { scale: 2 };
   const full = segments.map((s) => s[0]).join('');
   let x = Math.round((LW - textWidth(full, opts)) / 2);
+  let left = chars;
   for (const [text, colour] of segments) {
-    drawText(ctx, text, x, 6, colour, opts);
+    drawText(ctx, text.slice(0, Math.max(0, left)), x, 6, colour, opts);
     x += textWidth(text, opts);
+    left -= text.length;
   }
 }
 
@@ -184,6 +191,8 @@ export function drawMessageBox(
   ctx: CanvasRenderingContext2D,
   g: Geometry,
   lines: [string, string][],
+  /** Only this many characters, while it types out. */
+  chars = Infinity,
 ) {
   const lineH = 20;
   const w = Math.max(...lines.map(([s]) => textWidth(s, { scale: 2 }))) + 24;
@@ -194,7 +203,11 @@ export function drawMessageBox(
   ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
   ctx.fillStyle = C.cyan;
   ctx.fillRect(x, y, w, h);
+  let left = chars;
   lines.forEach(([text, colour], k) => {
-    drawText(ctx, text, x + w / 2, y + 10 + k * lineH, colour, { scale: 2, align: 'center' });
+    // typed from where the finished line will start, so it doesn't shift as it grows
+    const lx = x + w / 2 - textWidth(text, { scale: 2 }) / 2;
+    drawText(ctx, text.slice(0, Math.max(0, left)), lx, y + 10 + k * lineH, colour, { scale: 2 });
+    left -= text.length;
   });
 }

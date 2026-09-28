@@ -11,6 +11,7 @@ import { drawCockpit, WIN } from '../gfx/cockpit.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { drawShipCentred, factionOf, type ShipLook, shipWidth } from '../gfx/ships.ts';
 import type { Faction } from '../gfx/shipart.ts';
+import { sound } from '../gfx/sound.ts';
 
 type SalvoView = NonNullable<PlayerView['lastSalvo']>;
 
@@ -150,16 +151,10 @@ export function drawSalvo(
   drawPlanes(ctx, salvo.seed, salvo.durationMs, elapsed, faction);
 
   // damage before the salvo, then each hit as it lands
-  const before = FLEET.map(
-    (s) => damageAfter[s.id]! - salvo.shipHits.filter((h) => h === s.id).length,
-  );
+  const { before, at } = sinkings(salvo, events, damageAfter);
   const landed = FLEET.map(() => 0);
-  const sunkAt: (number | null)[] = FLEET.map(() => null);
-  for (const e of events) {
-    if (e.ship === null || elapsed < e.impact) continue;
-    landed[e.ship]!++;
-    if (before[e.ship]! + landed[e.ship]! >= shipSize(e.ship)) sunkAt[e.ship] = e.impact;
-  }
+  for (const e of events) if (e.ship !== null && elapsed >= e.impact) landed[e.ship]!++;
+  const sunkAt = at.map((t) => (t !== null && elapsed >= t ? t : null));
 
   for (const row of [0, 1] as const) {
     for (const spec of FLEET) {
@@ -480,6 +475,29 @@ function drawJack(ctx: CanvasRenderingContext2D, x: number, y: number, faction: 
 const PLANE = ['#..........', '##.....o...', '##########.', '.##########', '...###.....'];
 
 /** One or two planes crossing the sky; they take no part in the battle, as in the original. */
+interface Plane {
+  start: number;
+  /** When it has crossed the window. */
+  end: number;
+  dir: 1 | -1;
+  y: number;
+  speed: number;
+}
+
+/** One or two planes, crossing at times set by the salvo's seed. */
+function planes(seed: number, duration: number): Plane[] {
+  const rng = createRng(seed ^ 0x51ed);
+  const count = 1 + rng.int(2);
+  return Array.from({ length: count }, () => {
+    const start = rng.next() * duration * 0.6;
+    const dir = rng.int(2) === 0 ? 1 : -1;
+    const y = WIN.y + 10 + rng.int(40);
+    const speed = 0.06 + rng.next() * 0.04;
+    return { start, end: start + (WIN.w + 28) / speed, dir, y, speed } as Plane;
+  });
+}
+
+/** Planes crossing the sky; they take no part in the battle, as in the original. */
 function drawPlanes(
   ctx: CanvasRenderingContext2D,
   seed: number,
@@ -487,13 +505,7 @@ function drawPlanes(
   t: number,
   faction: Faction,
 ) {
-  const rng = createRng(seed ^ 0x51ed);
-  const count = 1 + rng.int(2);
-  for (let k = 0; k < count; k++) {
-    const start = rng.next() * duration * 0.6;
-    const dir = rng.int(2) === 0 ? 1 : -1;
-    const y = WIN.y + 10 + rng.int(40);
-    const speed = 0.06 + rng.next() * 0.04;
+  for (const { start, dir, y, speed } of planes(seed, duration)) {
     const travel = (t - start) * speed;
     if (travel < 0) continue;
     const x = dir === 1 ? WIN.x - 14 + travel : WIN.x + WIN.w + 14 - travel;
@@ -504,5 +516,43 @@ function drawPlanes(
         ctx.fillRect(Math.round(dir === 1 ? x + i : x + PLANE[0]!.length - 1 - i), y + j, 1, 1);
       }),
     );
+  }
+}
+
+/** When each ship's last hit lands, for the ships this salvo sinks. */
+function sinkings(salvo: SalvoView, events: ShotEvent[], damageAfter: readonly number[]) {
+  const before = FLEET.map(
+    (s) => damageAfter[s.id]! - salvo.shipHits.filter((h) => h === s.id).length,
+  );
+  const landed = FLEET.map(() => 0);
+  const at: (number | null)[] = FLEET.map(() => null);
+  for (const e of events) {
+    if (e.ship === null) continue;
+    landed[e.ship]!++;
+    if (before[e.ship]! + landed[e.ship]! >= shipSize(e.ship)) at[e.ship] = e.impact;
+  }
+  return { before, at };
+}
+
+/** Plays the sounds of whatever happened in the scene between `prev` and `now` (ms). */
+export function salvoSounds(
+  salvo: SalvoView,
+  events: ShotEvent[],
+  damageAfter: readonly number[],
+  prev: number,
+  now: number,
+) {
+  const crossed = (t: number) => t > prev && t <= now;
+  const k = salvo.durationMs / nominalOf(salvo);
+  if (prev < 0 && now < 300) sound.play('fire');
+  for (const e of events) {
+    if (crossed(e.launch)) sound.play('launch');
+    if (crossed(e.impact)) sound.play(e.ship === null ? 'miss' : 'hit');
+  }
+  for (const t of sinkings(salvo, events, damageAfter).at) {
+    if (t !== null && crossed(t + SINK_DELAY * k)) sound.play('sink');
+  }
+  for (const p of planes(salvo.seed, salvo.durationMs)) {
+    if (crossed(p.start)) sound.play('plane', { seconds: (p.end - p.start) / 1000, volume: 0.6 });
   }
 }

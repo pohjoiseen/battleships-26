@@ -1,5 +1,6 @@
 import type { PlayerView } from '@bs/shared';
 import { Screen } from '../gfx/screen.ts';
+import { sound } from '../gfx/sound.ts';
 import { App } from './app.ts';
 import { Net } from './net.ts';
 
@@ -50,6 +51,7 @@ copyButton.addEventListener('click', async () => {
 // ---- input ----
 const at = (e: { clientX: number; clientY: number }) => screen.toLogical(e.clientX, e.clientY);
 canvas.addEventListener('pointerdown', (e) => {
+  sound.unlock();
   canvas.setPointerCapture(e.pointerId);
   const p = at(e);
   app.pointerDown(p.x, p.y, e.button);
@@ -72,6 +74,7 @@ canvas.addEventListener(
 );
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
+  sound.unlock();
   if (app.key(e)) e.preventDefault();
 });
 

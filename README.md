@@ -53,3 +53,5 @@ Checked against the original (playthrough video in `zx-screenshots/`) where the 
 - The salvo animation shows which ship each hit struck, in shuffled order, so it doesn't reveal
   which cell hit which ship.
 - As in the original, your own ships aren't shown while the opponent is aiming at your sea.
+
+Sound effects are synthesised beeper-style (`gfx/sound.ts`); **M** toggles them on and off.

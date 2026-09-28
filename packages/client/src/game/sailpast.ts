@@ -12,6 +12,7 @@ import {
 import { drawText, textWidth } from '../gfx/font.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LH, LW } from '../gfx/screen.ts';
+import { sound } from '../gfx/sound.ts';
 import { drawShip, drawSos, factionOf, shipWidth, spriteX0 } from '../gfx/ships.ts';
 
 /**
@@ -134,6 +135,28 @@ function drawScene(ctx: CanvasRenderingContext2D, t: number) {
   }
 }
 
+/** How much of the title has typed out. */
+export function typedChars(elapsed: number): number {
+  return Math.min(TITLE.length, Math.max(0, Math.floor(elapsed / TYPE_MS)));
+}
+
+/** Plays the sail past's sounds between `prev` and `now` (ms): the title typing, and a blast
+ * on each ship's horn as it passes the middle of the screen. */
+export function sailPastSounds(
+  winner: PlayerIndex,
+  damage: readonly number[],
+  prev: number,
+  now: number,
+) {
+  if (typedChars(now) > typedChars(prev)) sound.play('type');
+  const col = column(winner, damage);
+  for (const item of col) {
+    if (item.kind !== 'ship') continue;
+    const t = (LW / 2 - item.w / 2 + item.offset + col[0]!.w) / SPEED;
+    if (t > prev && t <= now) sound.play('horn');
+  }
+}
+
 export function drawSailPast(
   ctx: CanvasRenderingContext2D,
   winner: PlayerIndex,
@@ -167,7 +190,7 @@ export function drawSailPast(
     drawText(ctx, name, x + item.w / 2, WATERLINE + 8, C.white, { align: 'center' });
   }
 
-  const typed = TITLE.slice(0, Math.floor(elapsed / TYPE_MS));
+  const typed = TITLE.slice(0, typedChars(elapsed));
   drawText(ctx, typed, LW / 2 - textWidth(TITLE, { scale: 2 }) / 2, 16, playerColour(winner), {
     scale: 2,
   });

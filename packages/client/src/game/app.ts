@@ -16,7 +16,8 @@ import {
   SEA_HIT,
   SEA_UNKNOWN,
 } from '@bs/shared';
-import { drawText } from '../gfx/font.ts';
+import { drawText, textWidth } from '../gfx/font.ts';
+import { sound } from '../gfx/sound.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LH, LW, type Screen } from '../gfx/screen.ts';
 import {
@@ -33,8 +34,8 @@ import {
   type ShipMarks,
 } from './draw.ts';
 import { cellAt, cellCentre, type Geometry, geometry, slotAt } from './geometry.ts';
-import { drawReport, drawSailPast, sailPastDuration } from './sailpast.ts';
-import { drawSalvo, timeline } from './salvo.ts';
+import { drawReport, drawSailPast, sailPastDuration, sailPastSounds } from './sailpast.ts';
+import { drawSalvo, salvoSounds, timeline } from './salvo.ts';
 
 type ScreenName =
   | 'connecting'
@@ -51,6 +52,8 @@ type OverStage = 'over-message' | 'winners' | 'sailpast' | 'report';
 const OVER_STAGES: readonly OverStage[] = ['over-message', 'winners', 'sailpast', 'report'];
 
 const BANNER_MS = 1400;
+/** Typing speed of titles and messages, per character. */
+const TYPE_MS = 45;
 const OVER_MESSAGE_MS = 4000;
 const WINNERS_MS = 7000;
 const CURSOR_SEND_MS = 50;
@@ -91,6 +94,10 @@ export class App {
 
   // sequencing
   private bannerUntil = 0;
+  private typing = { id: '', count: 0 };
+  private sfx = { key: '', at: 0 };
+  private toast = '';
+  private toastUntil = 0;
   private lastTurn = 0;
   private salvoKey = '';
   private salvoStart = 0;
@@ -227,6 +234,14 @@ export class App {
         default:
       }
       for (const b of this.buttons) drawButton(ctx, b);
+      this.playSounds(v);
+    }
+
+    if (this.now < this.toastUntil) {
+      const w = textWidth(this.toast, {}) + 12;
+      ctx.fillStyle = C.black;
+      ctx.fillRect(LW / 2 - w / 2, LH / 2 - 8, w, 16);
+      drawText(ctx, this.toast, LW / 2, LH / 2 - 4, C.brightWhite, { align: 'center' });
     }
 
     if (v && !this.connected) {
@@ -235,6 +250,45 @@ export class App {
       });
     }
     this.screen.present();
+  }
+
+  /**
+   * How many characters of a typing-out text to show, `start` ms in; each new character
+   * chatters like a teletype.
+   */
+  private typeOut(id: string, parts: [string, string][], start: number): number {
+    const total = parts.reduce((n, [text]) => n + text.length, 0);
+    const n = Math.min(total, Math.max(0, Math.floor((this.now - start) / TYPE_MS)));
+    if (id !== this.typing.id) this.typing = { id, count: 0 };
+    if (n > this.typing.count) sound.play('type');
+    this.typing.count = n;
+    return n;
+  }
+
+  /** Sounds for whatever happened since the last frame, on screens that make any. */
+  private playSounds(v: PlayerView): void {
+    const screen = this.screenName();
+    const key =
+      screen === 'salvo'
+        ? `salvo ${this.salvoKey}`
+        : this.isOver(screen)
+          ? `${screen} ${this.stageStart}`
+          : screen;
+    const start = screen === 'salvo' ? this.salvoStart : this.stageStart;
+    const elapsed = this.now - start;
+    const fresh = key !== this.sfx.key;
+    const prev = fresh ? -1 : this.sfx.at;
+    this.sfx = { key, at: elapsed };
+    // after the tab was hidden, don't catch up with a burst of everything that was missed
+    if (!fresh && elapsed - prev > 500) return;
+    if (screen === 'salvo' && v.lastSalvo) {
+      const defender = other(v.lastSalvo.shooter);
+      salvoSounds(v.lastSalvo, this.events, v.seas[defender].damage, prev, elapsed);
+    } else if (screen === 'winners' && fresh) {
+      sound.play('drone');
+    } else if (screen === 'sailpast') {
+      sailPastSounds(v.winner!, v.seas[v.winner!].damage, prev, elapsed);
+    }
   }
 
   private opponentName(v: PlayerView): string {
@@ -317,10 +371,12 @@ export class App {
     const pending = mine ? this.localPending : v.pendingShots;
     this.g = geometry(defender === 1);
 
-    drawTitle(ctx, [
+    // the title types out once the READY banner has gone, as in the original
+    const title: [string, string][] = [
       [`PLAYER ${shooter + 1}`, playerColour(shooter)],
       [` FIRE ${plural(v.shotsAllowed, 'SHOT')} AT NME`, C.brightCyan],
-    ]);
+    ];
+    drawTitle(ctx, title, this.typeOut(`turn ${v.turnNumber}`, title, this.bannerUntil));
     drawSea(
       ctx,
       this.g,
@@ -391,7 +447,7 @@ export class App {
               ['IS SUNK.', C.black],
               ['YOU WIN!', C.black],
             ];
-      drawMessageBox(ctx, this.g, lines);
+      drawMessageBox(ctx, this.g, lines, this.typeOut('over', lines, this.stageStart));
       return;
     }
 
@@ -507,6 +563,11 @@ export class App {
   }
 
   key(e: KeyboardEvent): boolean {
+    if (e.key === 'm' || e.key === 'M') {
+      this.toast = sound.toggleMute() ? 'SOUND OFF' : 'SOUND ON';
+      this.toastUntil = this.now + 1200;
+      return true;
+    }
     const v = this.view;
     if (!v) return false;
     const screen = this.screenName();
