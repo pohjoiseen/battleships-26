@@ -77,9 +77,17 @@ describe('game flow', () => {
     expect(applyAction(g, { type: 'draft', player: 0, layout: bad }, r).ok).toBe(true);
   });
 
-  it('grants 24 shots with salvo fire and 1 without', () => {
+  it('grants 24 shots with salvo fire and 4 without', () => {
     expect(shotsAllowed(started(true), 0)).toBe(24);
-    expect(shotsAllowed(started(false), 0)).toBe(1);
+    expect(shotsAllowed(started(false), 0)).toBe(4);
+  });
+
+  it('keeps 4 shots without salvo fire as ships are lost', () => {
+    const on = started(true);
+    const off = started(false);
+    for (const g of [on, off]) g.players[0].damage[5] = 2; // torpedo boat sunk
+    expect(shotsAllowed(on, 0)).toBe(20);
+    expect(shotsAllowed(off, 0)).toBe(4);
   });
 
   it('lets shots be placed and removed, but not beyond the allowance or twice on a cell', () => {
@@ -87,10 +95,12 @@ describe('game flow', () => {
     const r = rng();
     const p = g.turn;
     expect(applyAction(g, { type: 'toggleShot', player: other(p), cell: 5 }, r).ok).toBe(false);
+    for (const cell of [5, 6, 7, 8]) {
+      expect(applyAction(g, { type: 'toggleShot', player: p, cell }, r).ok).toBe(true);
+    }
+    expect(applyAction(g, { type: 'toggleShot', player: p, cell: 9 }, r).ok).toBe(false);
     expect(applyAction(g, { type: 'toggleShot', player: p, cell: 5 }, r).ok).toBe(true);
-    expect(applyAction(g, { type: 'toggleShot', player: p, cell: 6 }, r).ok).toBe(false);
-    expect(applyAction(g, { type: 'toggleShot', player: p, cell: 5 }, r).ok).toBe(true);
-    expect(g.pendingShots).toEqual([]);
+    expect(g.pendingShots).toEqual([6, 7, 8]);
     expect(applyAction(g, { type: 'fire', player: p }, r).ok).toBe(false);
   });
 

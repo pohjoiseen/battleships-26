@@ -48,9 +48,9 @@ describe('simple AI', () => {
     for (let seed = 1; seed <= 10; seed++) play(simpleAi, simpleAi, createRng(seed));
   });
 
-  it('works with salvo fire off (one shot per turn)', () => {
+  it('works with salvo fire off (4 shots per turn)', () => {
     const { turns } = play(simpleAi, simpleAi, createRng(7), false);
-    expect(turns).toBeLessThan(400);
+    expect(turns).toBeLessThan(200);
   });
 
   it('beats random shooting nearly every time', () => {

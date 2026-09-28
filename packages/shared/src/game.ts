@@ -19,7 +19,7 @@ export const SEA_MISS = 1;
 export const SEA_HIT = 2;
 
 export interface GameSettings {
-  /** Salvo fire: 4 shots per surviving ship. Off: a single shot per turn. */
+  /** Salvo fire: 4 shots per surviving ship. Off: always 4 shots, however many ships are left. */
   salvo: boolean;
 }
 
@@ -115,7 +115,9 @@ export function survivingShips(player: PlayerState): number {
 
 /** How many shots `shooter` gets this turn (never more than there are cells left to shoot). */
 export function shotsAllowed(state: GameState, shooter: PlayerIndex): number {
-  const wanted = state.settings.salvo ? SHOTS_PER_SHIP * survivingShips(state.players[shooter]) : 1;
+  const wanted = state.settings.salvo
+    ? SHOTS_PER_SHIP * survivingShips(state.players[shooter])
+    : SHOTS_PER_SHIP;
   const left = state.players[other(shooter)].sea.filter((s) => s === SEA_UNKNOWN).length;
   return Math.min(wanted, left);
 }
