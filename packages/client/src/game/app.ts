@@ -17,7 +17,7 @@ import {
   SEA_UNKNOWN,
 } from '@bs/shared';
 import { drawText, textWidth } from '../gfx/font.ts';
-import { sound } from '../gfx/sound.ts';
+import { sound, TYPE_UNIT_MS } from '../gfx/sound.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LH, LW, type Screen } from '../gfx/screen.ts';
 import {
@@ -94,7 +94,7 @@ export class App {
 
   // sequencing
   private bannerUntil = 0;
-  private typing = { id: '', count: 0 };
+  private typing = { id: '', count: 0, unit: -1 };
   private sfx = { key: '', at: 0 };
   private toast = '';
   private toastUntil = 0;
@@ -259,8 +259,13 @@ export class App {
   private typeOut(id: string, parts: [string, string][], start: number): number {
     const total = parts.reduce((n, [text]) => n + text.length, 0);
     const n = Math.min(total, Math.max(0, Math.floor((this.now - start) / TYPE_MS)));
-    if (id !== this.typing.id) this.typing = { id, count: 0 };
-    if (n > this.typing.count) sound.play('type');
+    if (id !== this.typing.id) this.typing = { id, count: 0, unit: -1 };
+    // one burst of chatter after another for as long as characters keep coming
+    const unit = Math.floor((this.now - start) / TYPE_UNIT_MS);
+    if (n > 0 && this.typing.count < total && unit !== this.typing.unit) {
+      sound.play('type');
+      this.typing.unit = unit;
+    }
     this.typing.count = n;
     return n;
   }
@@ -282,8 +287,7 @@ export class App {
     // after the tab was hidden, don't catch up with a burst of everything that was missed
     if (!fresh && elapsed - prev > 500) return;
     if (screen === 'salvo' && v.lastSalvo) {
-      const defender = other(v.lastSalvo.shooter);
-      salvoSounds(v.lastSalvo, this.events, v.seas[defender].damage, prev, elapsed);
+      salvoSounds(v.lastSalvo, this.events, prev, elapsed);
     } else if (screen === 'winners' && fresh) {
       sound.play('drone');
     } else if (screen === 'sailpast') {

@@ -6,7 +6,7 @@
  */
 
 export type SoundName =
-  'type' | 'fire' | 'launch' | 'hit' | 'miss' | 'sink' | 'plane' | 'drone' | 'horn';
+  'type' | 'fire' | 'shells' | 'rush' | 'hit' | 'miss' | 'plane' | 'drone' | 'horn';
 
 type Synth = (sr: number) => Float32Array;
 
@@ -56,6 +56,39 @@ function noise(
   return out;
 }
 
+/** Length of one burst of the teletype chatter, in ms. */
+export const TYPE_UNIT_MS = 105;
+
+/**
+ * The beeper's crackle, as in the original's teletype: the speaker held high for most of a
+ * burst, with very short clicks down, crowded at the start of the burst and thinning out; then
+ * held low for `gap` seconds. `units` bursts of `unit` seconds each, AC-coupled like the
+ * Spectrum's output.
+ */
+function crackle(sr: number, units: number, unit: number, gap: number, seed: number) {
+  const n = Math.round(sr * unit * units);
+  const raw = new Float32Array(n);
+  let s = seed >>> 0;
+  const rand = () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296;
+  const clickLen = Math.max(2, Math.round(sr * 0.00012));
+  for (let u = 0; u < units; u++) {
+    const start = Math.round(u * unit * sr);
+    const high = Math.round((unit - gap) * sr);
+    const end = Math.round((u + 1) * unit * sr);
+    for (let i = start; i < end; i++) raw[i] = i - start < high ? 0.5 : -0.5;
+    for (let t = 0.0003; t < unit - gap - 0.0005;) {
+      const at = start + Math.round(t * sr);
+      for (let k = 0; k < clickLen; k++) raw[at + k] = -0.5;
+      t += t < 0.01 ? 0.0003 + rand() * 0.0012 : 0.0008 + rand() * 0.004;
+    }
+  }
+  // the output is AC-coupled: a held level sags back towards zero
+  const out = new Float32Array(n);
+  const a = 1 / (1 + (2 * Math.PI * 8) / sr);
+  for (let i = 1; i < n; i++) out[i] = a * (out[i - 1]! + raw[i]! - raw[i - 1]!);
+  return out;
+}
+
 const fadeOut =
   (seconds: number, tail = 0.02) =>
   (t: number) =>
@@ -63,33 +96,32 @@ const fadeOut =
 
 /** Exported so the sounds can be rendered offline to check them. */
 export const SYNTHS: Record<SoundName, Synth> = {
-  // a teletype chatter: a few sharp clicks at irregular intervals
-  type: (sr) => {
-    const out = new Float32Array(Math.round(sr * 0.045));
-    let s = 7;
-    for (let at = 0; at < out.length - 40;) {
-      for (let k = 0; k < 14; k++) out[at + k] = 1 - k / 14;
-      s = (Math.imul(s, 1103515245) + 12345) >>> 0;
-      at += Math.round(sr * (0.002 + (((s >>> 16) % 100) / 100) * 0.006));
-    }
-    return out;
-  },
+  // the teletype chatter as text types out: one burst of the crackle per unit
+  type: (sr) => crackle(sr, 1, TYPE_UNIT_MS / 1000, 0.01, 11),
   // three beeps as the salvo is fired
   fire: (sr) =>
     square(
       sr,
-      1.14,
+      0.84,
       () => 820,
-      (t) => (t % 0.38 < 0.28 ? 0.8 : 0),
+      (t) => (t % 0.28 < 0.21 ? 0.8 : 0),
     ),
-  // a shell leaving the gun: a quick falling chirp
-  launch: (sr) =>
-    square(
+  // shells in the air: a tone stepping down from 1900 to 1300 Hz, over and over (looped)
+  shells: (sr) => {
+    const steps = 8;
+    const step = 0.021;
+    const cycle = 0.2;
+    return square(
       sr,
-      0.12,
-      (t) => 1900 * Math.pow(1300 / 1900, t / 0.12),
-      (t) => 0.55 * fadeOut(0.12)(t),
-    ),
+      cycle,
+      (t) =>
+        1900 *
+        Math.pow(1300 / 1900, Math.min(steps - 1, Math.floor(t / (step + 0.002))) / (steps - 1)),
+      (t) => (t < steps * (step + 0.002) && t % (step + 0.002) < step ? 0.45 : 0),
+    );
+  },
+  // the rushing under the whole salvo: the crackle in quick bursts (looped)
+  rush: (sr) => crackle(sr, 10, 0.065, 0.025, 5),
   // a hit: noise falling in pitch as it dies away
   hit: (sr) =>
     noise(
@@ -107,14 +139,6 @@ export const SYNTHS: Record<SoundName, Synth> = {
       () => 1 / 12000,
       (t) => 0.4 * Math.pow(1 - t / 0.3, 2),
       5,
-    ),
-  // a ship going down: a long falling whistle
-  sink: (sr) =>
-    square(
-      sr,
-      1.3,
-      (t) => 3000 * Math.pow(500 / 3000, t / 1.3),
-      (t) => 0.5 * fadeOut(1.3, 0.2)(t),
     ),
   // a plane's engine: a low, buzzing click train (looped while the plane is in view)
   plane: (sr) => {

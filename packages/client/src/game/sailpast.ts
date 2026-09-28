@@ -12,7 +12,7 @@ import {
 import { drawText, textWidth } from '../gfx/font.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LH, LW } from '../gfx/screen.ts';
-import { sound } from '../gfx/sound.ts';
+import { sound, TYPE_UNIT_MS } from '../gfx/sound.ts';
 import { drawShip, drawSos, factionOf, shipWidth, spriteX0 } from '../gfx/ships.ts';
 
 /**
@@ -141,18 +141,22 @@ export function typedChars(elapsed: number): number {
 }
 
 /** Plays the sail past's sounds between `prev` and `now` (ms): the title typing, and a blast
- * on each ship's horn as it passes the middle of the screen. */
+ * on each ship's horn as it comes into view. */
 export function sailPastSounds(
   winner: PlayerIndex,
   damage: readonly number[],
   prev: number,
   now: number,
 ) {
-  if (typedChars(now) > typedChars(prev)) sound.play('type');
+  const unit = (t: number) => Math.floor(t / TYPE_UNIT_MS);
+  if (typedChars(now) > 0 && typedChars(prev) < TITLE.length && unit(now) > unit(prev)) {
+    sound.play('type');
+  }
   const col = column(winner, damage);
   for (const item of col) {
     if (item.kind !== 'ship') continue;
-    const t = (LW / 2 - item.w / 2 + item.offset + col[0]!.w) / SPEED;
+    // as its bow comes into view
+    const t = (item.offset + col[0]!.w - item.w) / SPEED;
     if (t > prev && t <= now) sound.play('horn');
   }
 }
