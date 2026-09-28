@@ -426,7 +426,7 @@ const ussr: Record<ShipClass, { w: number; art: Art }> = {
 };
 
 // ---------------------------------------------------------------------------------------------
-// USA: Nimitz carrier, Ticonderoga cruiser, Los Angeles submarine, Spruance destroyer,
+// USA: Nimitz carrier, Virginia cruiser, Los Angeles submarine, Spruance destroyer,
 // Pegasus hydrofoil.
 
 const usa: Record<ShipClass, { w: number; art: Art }> = {
@@ -468,26 +468,28 @@ const usa: Record<ShipClass, { w: number; art: Art }> = {
         band: [2, 4],
         raise: 2,
       });
-      // two tall, flat-sided deckhouses (radar panels on their faces), fore and aft
-      p.block(52, 5, 18, 9, true);
-      p.slopedBlock(56, 14, 12, 3, 2, true);
-      p.rect(61, 8, 5, 4, Ink.Mid); // SPY-1 panel
-      p.dot(63, 10, Ink.Dark);
-      p.block(20, 5, 16, 8, true);
-      p.rect(25, 7, 5, 4, Ink.Mid);
-      p.dot(27, 9, Ink.Dark);
-      p.funnel(38, 5, 6, 7);
-      p.funnel(45, 5, 5, 6);
-      // masts
-      p.lattice(60, 17, 10, 6);
-      p.mast(60, 27, 4, 5);
-      p.mast(28, 13, 10, 5);
-      // 5-inch guns and launchers
-      p.turret(76, 6, 1, 5);
-      p.rect(71, 5, 4, 2, Ink.Mid);
+      // a long, low deckhouse stepping up to the bridge; nuclear, so no funnels
+      p.block(28, 5, 38, 4, true);
+      p.block(33, 9, 12, 3, true);
+      p.slopedBlock(50, 9, 16, 5, 3, true);
+      p.block(53, 14, 8, 2);
+      // tall fore mast with its planar radar, and the aft mast with a curved antenna
+      p.lattice(58, 16, 11, 6);
+      p.rect(55, 23, 5, 3, Ink.Mid);
+      p.vline(59, 23, 3, Ink.Dark);
+      p.mast(58, 27, 5, 5);
+      p.lattice(39, 12, 10, 5);
+      p.hline(35, 20, 9, Ink.Mid);
+      p.hline(36, 21, 7, Ink.Light);
+      p.mast(39, 22, 5, 3);
+      // 5-inch guns and twin-arm missile launchers at both ends
+      p.turret(80, 6, 1, 5);
+      p.rect(70, 5, 5, 2, Ink.Mid);
+      p.line(70, 7, 75, 9, Ink.Dark);
       p.turret(8, 5, -1, 5);
-      p.rect(14, 5, 4, 2, Ink.Mid);
-      usFlag(p, 28, 17, 5);
+      p.rect(18, 5, 5, 2, Ink.Mid);
+      p.line(22, 7, 17, 9, Ink.Dark);
+      usFlag(p, 39, 14, 4);
       return { hullH: 5, hitSpots: spots(5, 10, 88, 3, [3, 9, 6, 11, 3]) };
     },
   },
