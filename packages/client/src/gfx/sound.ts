@@ -6,7 +6,7 @@
  */
 
 export type SoundName =
-  'type' | 'fire' | 'shells' | 'rush' | 'hit' | 'miss' | 'plane' | 'drone' | 'horn';
+  'type' | 'fire' | 'intro' | 'shot' | 'rush' | 'hit' | 'miss' | 'plane' | 'drone' | 'horn';
 
 type Synth = (sr: number) => Float32Array;
 
@@ -110,19 +110,34 @@ export const SYNTHS: Record<SoundName, Synth> = {
       () => 820,
       (t) => ((t * 1000) % FIRE_BEEP_MS < FIRE_BEEP_ON_MS ? 0.8 : 0),
     ),
-  // shells in the air: a tone stepping down from 1900 to 1300 Hz, over and over (looped)
-  shells: (sr) => {
+  // a shell leaving the gun: a tone stepping down from 1900 to 1300 Hz
+  shot: (sr) => {
     const steps = 8;
-    const step = 0.021;
-    const cycle = 0.2;
+    const step = 0.028;
+    const gap = 0.003;
     return square(
       sr,
-      cycle,
+      steps * (step + gap),
       (t) =>
         1900 *
-        Math.pow(1300 / 1900, Math.min(steps - 1, Math.floor(t / (step + 0.002))) / (steps - 1)),
-      (t) => (t < steps * (step + 0.002) && t % (step + 0.002) < step ? 0.45 : 0),
+        Math.pow(1300 / 1900, Math.min(steps - 1, Math.floor(t / (step + gap))) / (steps - 1)),
+      (t) => (t % (step + gap) < step ? 0.45 : 0),
     );
+  },
+  // the salvo scene opening: a buzz of clicks, 50 a second, each a short burst of square wave
+  // whose pitch falls from 2800 to 700 Hz
+  intro: (sr) => {
+    const seconds = 0.6;
+    const out = new Float32Array(Math.round(sr * seconds));
+    for (let t = 0; t < seconds; t += 0.02) {
+      const f = 2800 * Math.pow(700 / 2800, t / seconds);
+      const start = Math.round(t * sr);
+      const len = Math.round((3 / f) * sr);
+      for (let i = 0; i < len && start + i < out.length; i++) {
+        out[start + i] = ((i / sr) * f) % 1 < 0.5 ? 0.7 : 0;
+      }
+    }
+    return out;
   },
   // the rushing under the whole salvo: the crackle in quick bursts (looped)
   rush: (sr) => crackle(sr, 10, 0.065, 0.025, 5),

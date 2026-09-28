@@ -534,17 +534,6 @@ function sinkings(salvo: SalvoView, events: ShotEvent[], damageAfter: readonly n
   return { before, at };
 }
 
-/** Stretches of time with at least one shell in the air, as [start, end] ms. */
-function flights(events: ShotEvent[]): [number, number][] {
-  const runs: [number, number][] = [];
-  for (const e of [...events].sort((a, b) => a.launch - b.launch)) {
-    const last = runs[runs.length - 1];
-    if (last && e.launch <= last[1]) last[1] = Math.max(last[1], e.impact);
-    else runs.push([e.launch, e.impact]);
-  }
-  return runs;
-}
-
 /**
  * Plays the sounds of whatever happened in the scene between `prev` and `now` (ms); `prev` is
  * negative on the first frame, which may come in the middle after a reconnect.
@@ -552,14 +541,15 @@ function flights(events: ShotEvent[]): [number, number][] {
 export function salvoSounds(salvo: SalvoView, events: ShotEvent[], prev: number, now: number) {
   const crossed = (t: number) => t > prev && t <= now;
   const k = salvo.durationMs / nominalOf(salvo);
-  const loop = (name: 'shells' | 'rush' | 'plane', from: number, to: number, volume = 1) => {
+  const loop = (name: 'rush' | 'plane', from: number, to: number, volume = 1) => {
     // starting now, or joining one already under way
     if (crossed(from) || (prev < 0 && now > from && now < to - 100))
       sound.play(name, { seconds: (to - Math.max(from, now)) / 1000, volume });
   };
   loop('rush', INTRO * k, salvo.durationMs - 200, 0.5);
-  for (const [from, to] of flights(events)) loop('shells', from, to);
+  if (prev < 0 && now < 300) sound.play('intro');
   for (const e of events) {
+    if (crossed(e.launch)) sound.play('shot');
     if (crossed(e.impact)) sound.play(e.ship === null ? 'miss' : 'hit');
   }
   for (const p of planes(salvo.seed, salvo.durationMs)) loop('plane', p.start, p.end, 0.6);
