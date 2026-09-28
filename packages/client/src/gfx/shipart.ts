@@ -243,7 +243,7 @@ function spots(
 }
 
 // ---------------------------------------------------------------------------------------------
-// USSR: Kiev-class carrier, Slava cruiser, Typhoon submarine, Sovremenny destroyer, Osa boat.
+// USSR: Kiev-class carrier, Slava cruiser, Victor III submarine, Sovremenny destroyer, Osa boat.
 
 const ussr: Record<ShipClass, { w: number; art: Art }> = {
   carrier: {
@@ -328,27 +328,31 @@ const ussr: Record<ShipClass, { w: number; art: Art }> = {
   submarine: {
     w: 90,
     art: (p) => {
-      // a broad, bulbous hull; the sail sits aft of midships; planes at the bow
+      // Victor III: a teardrop hull with a blunt bow, a long low sail blending in at the back,
+      // and the towed-array pod on top of the rudder
       for (let x = 2; x <= 88; x++) {
-        const t = (x - 2) / 86;
-        const h = Math.round(Math.min(6, 1 + 22 * t * (1 - t)));
+        const aft = 1 + (x - 2) / 5;
+        const fwd = 1 + Math.sqrt(Math.max(0, 88 - x)) * 1.5;
+        const h = Math.round(Math.min(5, aft, fwd));
         for (let y = 0; y < h; y++) p.dot(x, y, y === h - 1 ? Ink.Mid : Ink.Hull2);
         p.dot(x, 0, Ink.Black);
       }
-      // sail, rounded at the back, with the band around it
-      for (let j = 0; j < 11; j++) {
-        const w = 16 - Math.max(0, j - 6) * 2;
-        p.hline(36 + (16 - w), 5 + j, w, j === 10 ? Ink.Mid : Ink.Hull2);
+      for (let j = 0; j < 10; j++) {
+        const cut = Math.round(j * 0.9);
+        const w = 17 - cut - (j === 9 ? 1 : 0);
+        let c: Ink = j === 9 ? Ink.Mid : Ink.Hull2;
+        if (j === 3) c = Ink.BandShade;
+        else if (j === 4 || j === 5) c = Ink.Band;
+        p.hline(47 + cut, 5 + j, w, c);
       }
-      p.rect(36, 8, 16, 3, Ink.Band);
-      p.hline(36, 8, 16, Ink.BandShade);
-      p.vline(48, 16, 2, Ink.Dark);
-      // bow planes and the rudder
-      p.hline(78, 4, 6, Ink.Hull2);
-      p.rect(2, 3, 3, 5, Ink.Hull2);
-      p.dot(4, 8, Ink.Hull2);
-      redFlag(p, 44, 16, 4);
-      return { hullH: 6, hitSpots: spots(4, 12, 80, 3, [3, 12, 3, 3]) };
+      p.vline(61, 15, 2, Ink.Dark);
+      // rudder with its pod
+      p.rect(4, 1, 3, 7, Ink.Hull2);
+      p.rect(0, 7, 12, 2, Ink.Hull2);
+      p.hline(1, 9, 10, Ink.Mid);
+      p.dot(0, 8, Ink.None);
+      redFlag(p, 58, 15, 4);
+      return { hullH: 5, hitSpots: spots(4, 12, 80, 3, [3, 3, 11, 3]) };
     },
   },
   destroyer: {
@@ -500,7 +504,7 @@ const usa: Record<ShipClass, { w: number; art: Art }> = {
       p.hline(60, 6, 9, Ink.BandShade);
       p.vline(66, 17, 2, Ink.Dark);
       // upper rudder
-      p.rect(3, 3, 3, 5, Ink.Hull2);
+      p.rect(3, 1, 3, 7, Ink.Hull2);
       usFlag(p, 64, 17, 4);
       return { hullH: 4, hitSpots: spots(4, 12, 80, 2, [2, 2, 12, 2]) };
     },
