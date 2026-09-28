@@ -21,12 +21,12 @@ import { drawShip, drawSos, factionOf, shipWidth, spriteX0 } from '../gfx/ships.
  */
 
 const HORIZON = 150;
-const WATERLINE = 236;
-const SCALE = 2;
+const WATERLINE = 226;
+const SCALE = 1;
 /** Logical pixels per ms. */
-const SPEED = 0.055;
-const GAP = 36;
-const BUOY_GAP = 44;
+const SPEED = 0.04;
+const GAP = 22;
+const BUOY_GAP = 26;
 const TITLE = 'VICTORY SAIL PAST';
 const TYPE_MS = 70;
 
@@ -149,7 +149,7 @@ export function drawSailPast(
     if (x > LW || x + item.w < 0) continue;
     const bob = Math.round(Math.sin(elapsed / 500 + item.offset) * 0.6);
     if (item.kind === 'buoy') {
-      drawSos(ctx, x + 10, WATERLINE - 10 + bob, 1);
+      drawSos(ctx, x + 10, WATERLINE - 2 + bob, 1, false);
       continue;
     }
     const spec = FLEET[item.shipId]!;
@@ -181,9 +181,9 @@ function drawWake(ctx: CanvasRenderingContext2D, x: number, w: number, t: number
   const rng = createRng(Math.floor(t / 120));
   ctx.fillStyle = C.brightWhite;
   for (let k = 0; k < 40; k++) {
-    const d = rng.next() ** 1.6 * 70;
+    const d = rng.next() ** 1.6 * 20;
     const wx = x - d;
-    const wy = WATERLINE + 1 + Math.round(rng.next() * (1 + d / 14));
+    const wy = WATERLINE + 1 + Math.round(rng.next() * (1 + d / 8));
     ctx.fillRect(Math.round(wx), wy, 1 + (d < 20 ? 1 : 0), 1);
   }
   for (let k = 0; k < 8; k++) {

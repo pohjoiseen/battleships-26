@@ -208,7 +208,14 @@ export function drawShipCentred(
   drawShip(ctx, look, Math.round(cx - (width * scale) / 2) - left * scale, waterline, t);
 }
 
-export function drawSos(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale = 1): void {
+/** A lifebuoy, labelled SOS unless `label` is false. */
+export function drawSos(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  scale = 1,
+  label = true,
+): void {
   ctx.fillStyle = C.brightWhite;
   const r = 7 * scale;
   for (let a = 0; a < 64; a++) {
@@ -222,5 +229,5 @@ export function drawSos(ctx: CanvasRenderingContext2D, cx: number, cy: number, s
       2 * scale,
     );
   }
-  drawText(ctx, 'SOS', cx, cy + 8 * scale, C.brightWhite, { align: 'center', scale });
+  if (label) drawText(ctx, 'SOS', cx, cy + 8 * scale, C.brightWhite, { align: 'center', scale });
 }
