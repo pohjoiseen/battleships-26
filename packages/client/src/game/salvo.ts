@@ -34,6 +34,13 @@ const SLOTS = [
 ];
 
 /**
+ * Slot for each ship id, arranged as in the original: carrier, destroyer, cruiser at the back;
+ * destroyer, torpedo boat, submarine in front.
+ */
+const SLOT_OF_SHIP = [0, 2, 5, 1, 3, 4];
+const slotOf = (shipId: number) => SLOTS[SLOT_OF_SHIP[shipId]!]!;
+
+/**
  * Shots land in a shuffled order, so the animation shows which ship each hit struck without
  * giving away which of the placed shots it was.
  */
@@ -90,13 +97,15 @@ export function drawSalvo(
   );
 
   for (const spec of FLEET) {
-    const slot = SLOTS[spec.id]!;
+    const slot = slotOf(spec.id);
     const struck = events.find(
       (e) => e.ship === spec.id && elapsed >= e.impact && elapsed < e.impact + 400,
     );
     const colour =
       struck && Math.floor(elapsed / 60) % 2 === 0 ? C.brightWhite : playerColour(defender);
     const damage = (before[spec.id]! + landed[spec.id]!) / shipSize(spec.id);
+    // a sunk ship just leaves empty sea here (the side panel is where its SOS shows)
+    if (damage >= 1) continue;
     drawShip(ctx, spec.cls, slot.x, slot.waterline, colour, damage, slot.scale);
   }
 
@@ -104,7 +113,7 @@ export function drawSalvo(
     if (elapsed < e.start || elapsed > e.end) continue;
     const target =
       e.ship !== null
-        ? { x: SLOTS[e.ship]!.x + 50, y: SLOTS[e.ship]!.waterline - 6 }
+        ? { x: slotOf(e.ship).x + 50, y: slotOf(e.ship).waterline - 6 }
         : { x: e.splashX, y: e.splashY };
     if (elapsed < e.impact) {
       // shell in flight from our bow
