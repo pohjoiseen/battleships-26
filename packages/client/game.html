@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <title>Battleships</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="game">
+    <canvas id="screen"></canvas>
+    <div id="invite" hidden>
+      <span>SEND THIS LINK TO PLAYER 2:</span>
+      <input id="invite-link" readonly aria-label="Invite link for player 2" />
+      <button id="invite-copy" type="button">COPY</button>
+    </div>
+    <script type="module" src="/src/game/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Battleships</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="landing">
+    <main>
+      <h1><span class="r">BATTLE</span> <span class="y">SHIPS</span></h1>
+      <form id="menu">
+        <ol>
+          <li><button type="submit" name="mode" value="1p">1 PLAYER</button></li>
+          <li><button type="submit" name="mode" value="2p">2 PLAYERS</button></li>
+          <li>
+            <label>
+              <input id="salvo" type="checkbox" checked />
+              SALVO FIRE - <span id="salvo-state">ON</span>
+            </label>
+          </li>
+        </ol>
+      </form>
+      <p id="status" role="status"></p>
+      <p class="credits">A REMAKE OF BATTLE SHIPS (HIT-PAK, 1987) FOR THE ZX SPECTRUM</p>
+    </main>
+    <script type="module" src="/src/landing.ts"></script>
+  </body>
+</html>

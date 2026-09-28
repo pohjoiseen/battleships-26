@@ -1,0 +1,5 @@
+zx-screenshots/
+dist/
+package-lock.json
+SPEC.md
+*.md

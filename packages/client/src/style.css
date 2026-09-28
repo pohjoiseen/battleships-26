@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+  --black: #000;
+  --cyan: #00d7d7;
+  --bright-cyan: #0ff;
+  --red: #ff0000;
+  --yellow: #ffff00;
+  --white: #d7d7d7;
+  --green: #00d700;
+  font-family: 'Press Start 2P', ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--black);
+  color: var(--white);
+}
+
+body.game {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+#screen {
+  display: block;
+  image-rendering: pixelated;
+  touch-action: none;
+  user-select: none;
+}
+
+#invite {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px;
+  background: var(--cyan);
+  color: var(--black);
+  border: 3px solid #fff;
+  font-size: 10px;
+}
+
+#invite[hidden] {
+  display: none;
+}
+
+#invite input {
+  font: inherit;
+  width: min(42ch, 70vw);
+  padding: 4px;
+  border: 2px solid var(--black);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  background: var(--green);
+  color: #fff;
+  border: 2px solid #fff;
+  padding: 6px 10px;
+}
+
+body.landing main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+h1 {
+  font-size: clamp(28px, 8vw, 56px);
+  margin: 0 0 40px;
+  letter-spacing: 2px;
+}
+
+h1 .r {
+  color: var(--red);
+}
+
+h1 .y {
+  color: var(--yellow);
+}
+
+#menu ol {
+  list-style: none;
+  padding: 24px;
+  margin: 0 auto;
+  display: inline-grid;
+  gap: 18px;
+  border: 3px solid var(--red);
+  text-align: left;
+  counter-reset: item;
+}
+
+#menu li {
+  counter-increment: item;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+#menu li::before {
+  content: counter(item);
+  color: var(--bright-cyan);
+}
+
+#menu li button {
+  background: none;
+  border: none;
+  color: var(--white);
+  padding: 0;
+  font-size: 14px;
+}
+
+#menu li button:hover,
+#menu li button:focus-visible {
+  color: var(--yellow);
+  outline: none;
+}
+
+#menu label {
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#menu input[type='checkbox'] {
+  position: absolute;
+  opacity: 0;
+}
+
+#menu label:focus-within {
+  color: var(--yellow);
+}
+
+#status {
+  min-height: 1.5em;
+  color: var(--bright-cyan);
+  font-size: 12px;
+}
+
+.credits {
+  margin-top: 48px;
+  font-size: 8px;
+  line-height: 1.8;
+  color: #808080;
+}
