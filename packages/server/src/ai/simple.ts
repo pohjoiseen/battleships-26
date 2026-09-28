@@ -58,6 +58,11 @@ export interface DensityOptions {
    * fleets would say 1, but people like the rim: a ship there blocks less of the sea.
    */
   edgeBonus: number;
+  /**
+   * Hunt with uniformly random shots, using the density only to finish off hit ships. A rough
+   * stand-in for the original Spectrum AI, for comparison.
+   */
+  huntRandomly?: boolean;
 }
 
 /**
@@ -98,7 +103,9 @@ export function chooseShotsByDensity(
       if (blocked || hits > damage[ship.id]!) continue;
       if (cand.rim.some((c) => sea[c] === SEA_HIT)) continue;
       if (hits > 0) targeting.push({ cells: cand.cells, weight: HIT_WEIGHT ** hits });
-      else hunting.push({ cells: cand.cells, weight: cand.onEdge ? opts.edgeBonus : 1 });
+      else if (!opts.huntRandomly) {
+        hunting.push({ cells: cand.cells, weight: cand.onEdge ? opts.edgeBonus : 1 });
+      }
     }
   }
 

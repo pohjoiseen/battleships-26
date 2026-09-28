@@ -14,10 +14,10 @@ import {
   SEA_MISS,
   shipSize,
 } from '@bs/shared';
-import { chooseShotsByDensity } from './simple.ts';
+import { chooseShotsByDensity, type DensityOptions } from './simple.ts';
 
 /**
- * Compares edge bonus settings for the density AI: mean number of 24-shot salvos it needs to
+ * Compares AI settings: mean number of 24-shot salvos it needs to
  * sink a whole fleet, for random fleets and for fleets that hug the edge like people tend to.
  * Run with `npm run bench:ai [fleets per kind]`.
  */
@@ -59,7 +59,7 @@ function edgyLayout(rng: Rng): Layout {
   }
 }
 
-function salvosToSink(layout: Layout, edgeBonus: number, rng: Rng): number {
+function salvosToSink(layout: Layout, opts: DensityOptions, rng: Rng): number {
   const owner = occupancy(layout);
   const sea = new Array(CELL_COUNT).fill(0);
   const damage = FLEET.map(() => 0);
@@ -67,9 +67,7 @@ function salvosToSink(layout: Layout, edgeBonus: number, rng: Rng): number {
   while (FLEET.some((s) => damage[s.id]! < shipSize(s.id))) {
     salvos++;
     const left = sea.filter((s) => s === 0).length;
-    for (const c of chooseShotsByDensity({ sea, damage, count: Math.min(24, left) }, rng, {
-      edgeBonus,
-    })) {
+    for (const c of chooseShotsByDensity({ sea, damage, count: Math.min(24, left) }, rng, opts)) {
       if (owner[c]! >= 0) {
         sea[c] = SEA_HIT;
         damage[owner[c]!]!++;
@@ -93,11 +91,20 @@ const edgeShare = (ls: Layout[]) =>
 console.log(
   `ships touching the edge: random ${(edgeShare(fleets.random!) * 100).toFixed(0)}%, edgy ${(edgeShare(fleets.edgy!) * 100).toFixed(0)}%`,
 );
-console.log('bonus | random fleets | edge-hugging fleets   (mean salvos of 24 to sink all)');
-for (const bonus of [1, 1.5, 2, 3, 4]) {
-  const row = Object.entries(fleets).map(([, ls]) => {
-    const r = ls.map((l, i) => salvosToSink(l, bonus, createRng(i)));
+const configs: [string, DensityOptions][] = [
+  ['random hunt + finish off', { edgeBonus: 1, huntRandomly: true }],
+  ...[1, 1.5, 2, 3, 4].map((edgeBonus): [string, DensityOptions] => [
+    `density, edge bonus ${edgeBonus}`,
+    { edgeBonus },
+  ]),
+];
+console.log(
+  'AI                        | random fleets | edge-hugging fleets   (mean salvos of 24 to sink all)',
+);
+for (const [name, opts] of configs) {
+  const row = Object.values(fleets).map((ls) => {
+    const r = ls.map((l, i) => salvosToSink(l, opts, createRng(i)));
     return (r.reduce((a, b) => a + b, 0) / r.length).toFixed(2);
   });
-  console.log(`${String(bonus).padEnd(5)} | ${row[0]!.padEnd(13)} | ${row[1]}`);
+  console.log(`${name.padEnd(25)} | ${row[0]!.padEnd(13)} | ${row[1]}`);
 }
