@@ -1,5 +1,7 @@
 import {
+  applyAction,
   CELL_COUNT,
+  createGame,
   conflictingShips,
   createRng,
   FLEET,
@@ -8,8 +10,10 @@ import {
   ORIENTATIONS,
   placementInBounds,
   placementIndices,
+  other,
   randomLayout,
   type Rng,
+  shotsAllowed,
   SEA_HIT,
   SEA_MISS,
   shipSize,
@@ -107,4 +111,45 @@ for (const [name, opts] of configs) {
     return (r.reduce((a, b) => a + b, 0) / r.length).toFixed(2);
   });
   console.log(`${name.padEnd(25)} | ${row[0]!.padEnd(13)} | ${row[1]}`);
+}
+
+/**
+ * Full games between two AIs on random fleets, taking turns to go first. Shot counts drop as
+ * ships are lost, so this is closer to real play than salvos-to-sink.
+ */
+function headToHead(a: DensityOptions, b: DensityOptions, games: number) {
+  let aWins = 0;
+  let salvos = 0;
+  for (let seed = 1; seed <= games; seed++) {
+    const rng = createRng(seed);
+    const g = createGame({ salvo: true }, rng);
+    g.firstPlayer = seed % 2 === 0 ? 0 : 1;
+    applyAction(g, { type: 'ready', player: 0, layout: randomLayout(rng) }, rng);
+    applyAction(g, { type: 'ready', player: 1, layout: randomLayout(rng) }, rng);
+    const ais = [a, b];
+    while (g.phase !== 'over') {
+      const p = g.turn;
+      const enemy = g.players[other(p)];
+      const request = { sea: [...enemy.sea], damage: [...enemy.damage], count: shotsAllowed(g, p) };
+      for (const cell of chooseShotsByDensity(request, rng, ais[p]!)) {
+        applyAction(g, { type: 'toggleShot', player: p, cell }, rng);
+      }
+      applyAction(g, { type: 'fire', player: p }, rng);
+      applyAction(g, { type: 'advance' }, rng);
+    }
+    if (g.winner === 0) aWins++;
+    salvos += g.turnNumber / 2;
+  }
+  return { aWins, meanSalvos: salvos / games };
+}
+
+const current = configs.find(([n]) => n.endsWith('edge bonus 3'))![1];
+console.log(`\nHead to head, ${N} games each (current AI = density, edge bonus 3):`);
+for (const [name, opts] of configs) {
+  if (opts === current) continue;
+  const { aWins, meanSalvos } = headToHead(current, opts, N);
+  console.log(
+    `current vs ${name.padEnd(25)} wins ${String(aWins).padStart(3)}/${N} ` +
+      `(${((aWins / N) * 100).toFixed(0)}%), ~${meanSalvos.toFixed(1)} salvos each`,
+  );
 }
