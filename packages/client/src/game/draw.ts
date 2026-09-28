@@ -69,7 +69,10 @@ export function drawSea(ctx: CanvasRenderingContext2D, g: Geometry, sea: SeaCont
     const o = cellOrigin(g, indexCell(sea.cursor));
     ctx.fillStyle = blink(t, 400) ? C.brightWhite : C.black;
     ctx.fillRect(o.x + 1, o.y + 1, cell - 1, cell - 1);
-    drawCross(ctx, g, sea.cursor, blink(t, 400) ? C.black : C.brightWhite);
+    // the cursor hides the cell under it, so show the shot mark in it if there is one
+    if (sea.pending?.includes(sea.cursor)) {
+      drawCross(ctx, g, sea.cursor, blink(t, 400) ? C.black : C.brightWhite);
+    }
   }
 
   for (let k = 0; k < BOARD_SIZE; k++) {
