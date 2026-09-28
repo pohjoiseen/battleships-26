@@ -45,6 +45,7 @@ type ScreenName =
   | 'placing'
   | 'aiming'
   | 'salvo'
+  | 'results'
   | 'over-message'
   | 'winners'
   | 'sailpast'
@@ -178,7 +179,10 @@ export class App {
       case 'aiming':
         return 'aiming';
       case 'resolving':
-        return 'salvo';
+        // the animation, then the sea with its results until the server moves on
+        return v.lastSalvo && this.now - this.salvoStart >= v.lastSalvo.durationMs
+          ? 'results'
+          : 'salvo';
       case 'over':
         return this.overStage;
     }
@@ -215,6 +219,9 @@ export class App {
             v.seas[other(v.lastSalvo!.shooter)].damage,
             now - this.salvoStart,
           );
+          break;
+        case 'results':
+          this.drawResults(ctx, v);
           break;
         case 'over-message':
         case 'winners':
@@ -431,6 +438,15 @@ export class App {
         [`PLAYER ${shooter + 1}`, C.black],
       ]);
     }
+  }
+
+  /** The sea just shot at, with the salvo's hits and misses, as in the original. */
+  private drawResults(ctx: CanvasRenderingContext2D, v: PlayerView) {
+    const defender = other(v.lastSalvo!.shooter);
+    this.g = geometry(defender === 1);
+    const sea = v.seas[defender];
+    drawSea(ctx, this.g, { owner: defender, chartSeed: v.chartSeed, shots: sea.shots }, this.now);
+    drawPanel(ctx, this.g, { owner: defender, damage: sea.damage }, this.now);
   }
 
   private drawOver(ctx: CanvasRenderingContext2D, v: PlayerView) {

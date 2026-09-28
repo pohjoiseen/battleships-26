@@ -3,6 +3,7 @@ import {
   AI_SHOT_DELAY_MS,
   AI_THINK_DELAY_MS,
   FIRING_MS,
+  RESULTS_MS,
   turnIntroMs,
   applyAction,
   type ClientMessage,
@@ -109,8 +110,11 @@ export class Room {
     // Drafts only matter to the player moving ships around, who already has them locally.
     if (action.type !== 'draft') this.broadcast();
     if (action.type === 'fire') {
+      // the animation, then a look at the results
       const duration = salvoDurationMs(this.state.lastSalvo!, this.opts.timeScale);
-      this.later(duration, () => this.apply({ type: 'advance' }));
+      this.later(duration + RESULTS_MS * this.opts.timeScale, () =>
+        this.apply({ type: 'advance' }),
+      );
     }
     // the last shot of a turn fires the salvo, after the shots have flashed on the chart
     const s = this.state;

@@ -35,7 +35,7 @@ export async function takeTurn(page: Page) {
   const sea = v.seas[v.turn === 0 ? 1 : 0].shots;
   const targets = sea.flatMap((s, i) => (s === 0 ? [i] : [])).slice(0, v.shotsAllowed);
   for (const cell of targets) await clickCell(page, cell);
-  await waitForScreen(page, 'salvo', 'over-message', 'winners');
+  await waitForScreen(page, 'salvo', 'results', 'over-message', 'winners');
 }
 
 /** Plays whenever it is this page's turn until the game is over. */

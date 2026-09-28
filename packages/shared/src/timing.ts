@@ -9,6 +9,9 @@ export function salvoDurationMs(salvo: Salvo, timeScale = 1): number {
   return Math.round(base * timeScale);
 }
 
+/** After the salvo animation, the sea with its results stays up this long, as in the original. */
+export const RESULTS_MS = 3500;
+
 /** The READY banner shown at the start of each turn. */
 export const TURN_BANNER_MS = 1400;
 /** Titles and messages type out at this many ms per character. */
