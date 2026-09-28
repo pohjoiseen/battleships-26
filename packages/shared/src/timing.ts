@@ -28,7 +28,7 @@ export function turnIntroMs(shooter: PlayerIndex, shots: number): number {
  * Once the last shot of a turn is placed, the shots flash on the chart with three beeps for
  * this long before the salvo goes, as in the original.
  */
-export const FIRING_MS = 900;
+export const FIRING_MS = 1250;
 
 /** Pause between the AI's shot placements, so a human can watch it aim. */
 export const AI_SHOT_DELAY_MS = 280;

@@ -57,8 +57,8 @@ function noise(
 }
 
 /** The firing beeps: each lasts this long, out of a cycle this long (ms). */
-export const FIRE_BEEP_ON_MS = 210;
-export const FIRE_BEEP_MS = 280;
+export const FIRE_BEEP_ON_MS = 300;
+export const FIRE_BEEP_MS = 400;
 
 /** Length of one burst of the teletype chatter, in ms. */
 export const TYPE_UNIT_MS = 105;

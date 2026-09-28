@@ -381,7 +381,7 @@ export class App {
       sound.play('fire');
     }
     // on with each beep, and off long enough in between to see
-    const flash = (this.now - this.firing.since) % FIRE_BEEP_MS < 150;
+    const flash = (this.now - this.firing.since) % FIRE_BEEP_MS < 220;
     const pending = firing && !flash ? [] : placed;
 
     // the title types out once the READY banner has gone, as in the original
