@@ -547,9 +547,22 @@ export function salvoSounds(salvo: SalvoView, events: ShotEvent[], prev: number,
       sound.play(name, { seconds: (to - Math.max(from, now)) / 1000, volume });
   };
   loop('rush', INTRO * k, salvo.durationMs - 200, 0.5);
-  if (prev < 0 && now < 300) sound.play('intro');
-  for (const e of events) {
-    if (crossed(e.launch)) sound.play('shot');
+  // The opening buzz runs up to the first shell, and each shell's chirp until the next goes (or
+  // it lands), so they follow on without gaps. They're scheduled a little ahead on the audio
+  // clock, since frames come too unevenly to start them on time, and overlap a touch.
+  const LOOKAHEAD = 100;
+  const OVERLAP = 0.015;
+  // (joining mid-salvo, only what's still to come)
+  const since = prev < 0 ? now : prev;
+  const soon = (t: number) => t > since + LOOKAHEAD && t <= now + LOOKAHEAD;
+  const delay = (t: number) => Math.max(0, t - now) / 1000;
+  const first = events[0]?.launch ?? INTRO * k;
+  if (prev < 0 && now < 300) sound.play('intro', { length: (first - now) / 1000 + OVERLAP });
+  for (const [n, e] of events.entries()) {
+    const until = Math.min(events[n + 1]?.launch ?? e.impact, e.impact);
+    if (soon(e.launch)) {
+      sound.play('shot', { length: (until - e.launch) / 1000 + OVERLAP, delay: delay(e.launch) });
+    }
     if (crossed(e.impact)) sound.play(e.ship === null ? 'miss' : 'hit');
   }
   for (const p of planes(salvo.seed, salvo.durationMs)) loop('plane', p.start, p.end, 0.6);

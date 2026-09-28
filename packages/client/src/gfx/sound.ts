@@ -8,7 +8,8 @@
 export type SoundName =
   'type' | 'fire' | 'intro' | 'shot' | 'rush' | 'hit' | 'miss' | 'plane' | 'drone' | 'horn';
 
-type Synth = (sr: number) => Float32Array;
+/** Makes a sound's samples; sounds that can be stretched take their `length` in seconds. */
+type Synth = (sr: number, length?: number) => Float32Array;
 
 const MUTED_KEY = 'bs.muted';
 const VOLUME = 0.22;
@@ -110,11 +111,12 @@ export const SYNTHS: Record<SoundName, Synth> = {
       () => 820,
       (t) => ((t * 1000) % FIRE_BEEP_MS < FIRE_BEEP_ON_MS ? 0.8 : 0),
     ),
-  // a shell leaving the gun: a tone stepping down from 1900 to 1300 Hz
-  shot: (sr) => {
+  // a shell leaving the gun: a tone stepping down from 1900 to 1300 Hz in eight steps,
+  // stretched to last until the next shell goes
+  shot: (sr, length = 0.25) => {
     const steps = 8;
-    const step = 0.028;
     const gap = 0.003;
+    const step = length / steps - gap;
     return square(
       sr,
       steps * (step + gap),
@@ -126,8 +128,8 @@ export const SYNTHS: Record<SoundName, Synth> = {
   },
   // the salvo scene opening: a buzz of clicks, 50 a second, each a short burst of square wave
   // whose pitch falls from 2800 to 700 Hz
-  intro: (sr) => {
-    const seconds = 0.6;
+  intro: (sr, length = 0.6) => {
+    const seconds = length;
     const out = new Float32Array(Math.round(sr * seconds));
     for (let t = 0; t < seconds; t += 0.02) {
       const f = 2800 * Math.pow(700 / 2800, t / seconds);
@@ -186,7 +188,7 @@ export const SYNTHS: Record<SoundName, Synth> = {
 class Sound {
   private ctx: AudioContext | null = null;
   private out: GainNode | null = null;
-  private readonly buffers = new Map<SoundName, AudioBuffer>();
+  private readonly buffers = new Map<string, AudioBuffer>();
   muted: boolean;
 
   constructor() {
@@ -228,24 +230,31 @@ class Sound {
     return this.muted;
   }
 
-  private buffer(name: SoundName): AudioBuffer | null {
+  private buffer(name: SoundName, length?: number): AudioBuffer | null {
     if (!this.ctx) return null;
-    let b = this.buffers.get(name);
+    // stretched sounds are kept per length, to the nearest 10 ms
+    const len = length === undefined ? undefined : Math.max(0.05, Math.round(length * 100) / 100);
+    const key = len === undefined ? name : `${name} ${len}`;
+    let b = this.buffers.get(key);
     if (!b) {
-      const data = SYNTHS[name](this.ctx.sampleRate);
+      const data = SYNTHS[name](this.ctx.sampleRate, len);
       b = this.ctx.createBuffer(1, data.length, this.ctx.sampleRate);
       b.copyToChannel(data as Float32Array<ArrayBuffer>, 0);
-      this.buffers.set(name, b);
+      this.buffers.set(key, b);
     }
     return b;
   }
 
   /**
-   * Plays a sound. With `seconds`, it loops for that long and fades out; returns a function that
-   * stops it early.
+   * Plays a sound. With `seconds`, it loops for that long and fades out; with `length`, a
+   * stretchable sound is made that long; `delay` (seconds) starts it that much later, on the
+   * audio clock. Returns a function that stops it early.
    */
-  play(name: SoundName, opts: { volume?: number; seconds?: number } = {}): () => void {
-    const buffer = this.buffer(name);
+  play(
+    name: SoundName,
+    opts: { volume?: number; seconds?: number; length?: number; delay?: number } = {},
+  ): () => void {
+    const buffer = this.buffer(name, opts.length);
     if (!this.ctx || !this.out || !buffer || this.muted || this.ctx.state !== 'running')
       return () => {};
     const src = this.ctx.createBufferSource();
@@ -253,7 +262,7 @@ class Sound {
     const gain = this.ctx.createGain();
     gain.gain.value = opts.volume ?? 1;
     src.connect(gain).connect(this.out);
-    const now = this.ctx.currentTime;
+    const now = this.ctx.currentTime + Math.max(0, opts.delay ?? 0);
     if (opts.seconds !== undefined) {
       src.loop = true;
       gain.gain.setValueAtTime(opts.volume ?? 1, now + Math.max(0, opts.seconds - 0.3));
