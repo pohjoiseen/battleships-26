@@ -1,36 +1,59 @@
+import { fork } from 'node:child_process';
+import { cpus } from 'node:os';
 import {
   applyAction,
   CELL_COUNT,
-  createGame,
   conflictingShips,
+  createGame,
   createRng,
   FLEET,
   type Layout,
   occupancy,
   ORIENTATIONS,
+  other,
   placementInBounds,
   placementIndices,
-  other,
   randomLayout,
   type Rng,
-  shotsAllowed,
   SEA_HIT,
   SEA_MISS,
   shipSize,
+  shotsAllowed,
 } from '@bs/shared';
 import { createOriginalAi } from './original/index.ts';
-import { chooseShotsByDensity, type DensityOptions } from './simple.ts';
+import { simpleAi } from './simple.ts';
+import { chooseShotsStrong, DEFAULT_STRONG, strongAi } from './strong.ts';
 import type { AiPlayer } from './types.ts';
 
 /**
- * Compares AIs: mean number of 24-shot salvos it needs to
- * sink a whole fleet, for random fleets and for fleets that hug the edge like people tend to.
- * Run with `npm run bench:ai [fleets per kind]`.
+ * Compares the AIs, in parallel over all cores. `npm run bench:ai [N]` (default 240; the
+ * strong AI takes a few minutes per column at that). With N games, win rates are good to about
+ * +-45/sqrt(N) points and salvo counts to about +-1.6/sqrt(N).
+ *
+ *   salvos:  mean 24-shot salvos to sink a fleet, random or hugging the edge like people's
+ *   vs 2026: win rate against our density AI, both placing their own fleets
+ *   vs human-ish: against an opponent who places like a person (hugging the edge) and aims
+ *            like the density AI
+ *   vs 1987: against the original's AI, which cheats
  */
 
+const AIS: Record<string, () => AiPlayer> = {
+  '1987': createOriginalAi,
+  '2026': () => simpleAi,
+  'ace, no lookahead': () => ({
+    placeFleet: randomLayout,
+    chooseShots: (request, rng) =>
+      chooseShotsStrong(request, rng, { ...DEFAULT_STRONG, candidates: [8] }),
+  }),
+  ace: () => strongAi,
+};
+
+const COLUMNS = ['salvos, random', 'salvos, edgy', 'vs 2026', 'vs human-ish', 'vs 1987'] as const;
+type Column = (typeof COLUMNS)[number];
+
 const edge = (i: number) => {
-  const x = i % 20,
-    y = Math.floor(i / 20);
+  const x = i % 20;
+  const y = Math.floor(i / 20);
   return x === 0 || y === 0 || x === 19 || y === 19;
 };
 
@@ -65,21 +88,20 @@ function edgyLayout(rng: Rng): Layout {
   }
 }
 
-const density = (opts: DensityOptions) => (): AiPlayer => ({
-  placeFleet: randomLayout,
-  chooseShots: (request, rng) => chooseShotsByDensity(request, rng, opts),
-});
-
-function salvosToSink(layout: Layout, makeAi: () => AiPlayer, rng: Rng): number {
-  const ai = makeAi();
+function salvosToSink(layout: Layout, ai: AiPlayer, rng: Rng): number {
   const owner = occupancy(layout);
-  const sea = new Array(CELL_COUNT).fill(0);
+  const sea = new Array<number>(CELL_COUNT).fill(0);
   const damage = FLEET.map(() => 0);
   let salvos = 0;
   while (FLEET.some((s) => damage[s.id]! < shipSize(s.id))) {
     salvos++;
     const left = sea.filter((s) => s === 0).length;
-    const request = { sea, damage, count: Math.min(24, left), fleet: layout };
+    const request = {
+      sea: [...sea],
+      damage: [...damage],
+      count: Math.min(24, left),
+      fleet: layout,
+    };
     for (const c of ai.chooseShots(request, rng)) {
       if (owner[c]! >= 0) {
         sea[c] = SEA_HIT;
@@ -90,81 +112,83 @@ function salvosToSink(layout: Layout, makeAi: () => AiPlayer, rng: Rng): number 
   return salvos;
 }
 
-const N = Number(process.argv[2] ?? 300);
-const kinds = { random: randomLayout, edgy: edgyLayout };
-const fleets = Object.fromEntries(
-  Object.entries(kinds).map(([k, gen]) => [
-    k,
-    Array.from({ length: N }, (_, i) => gen(createRng(1000 + i))),
-  ]),
-);
-const edgeShare = (ls: Layout[]) =>
-  ls.reduce((s, l) => s + l.filter((p) => placementIndices(p).some(edge)).length, 0) /
-  (ls.length * 6);
-console.log(
-  `ships touching the edge: random ${(edgeShare(fleets.random!) * 100).toFixed(0)}%, edgy ${(edgeShare(fleets.edgy!) * 100).toFixed(0)}%`,
-);
-const configs: [string, () => AiPlayer][] = [
-  ['original (1987)', createOriginalAi],
-  ['random hunt + finish off', density({ edgeBonus: 1, huntRandomly: true })],
-  ...[1, 1.5, 2, 3, 4].map((edgeBonus): [string, () => AiPlayer] => [
-    `density, edge bonus ${edgeBonus}`,
-    density({ edgeBonus }),
-  ]),
-];
-console.log(
-  'AI                        | random fleets | edge-hugging fleets   (mean salvos of 24 to sink all)',
-);
-for (const [name, makeAi] of configs) {
-  const row = Object.values(fleets).map((ls) => {
-    const r = ls.map((l, i) => salvosToSink(l, makeAi, createRng(i)));
-    return (r.reduce((a, b) => a + b, 0) / r.length).toFixed(2);
-  });
-  console.log(`${name.padEnd(25)} | ${row[0]!.padEnd(13)} | ${row[1]}`);
-}
-
-/**
- * Full games between two AIs on random fleets, taking turns to go first. Shot counts drop as
- * ships are lost, so this is closer to real play than salvos-to-sink.
- */
-function headToHead(a: () => AiPlayer, b: () => AiPlayer, games: number) {
-  let aWins = 0;
-  let salvos = 0;
-  for (let seed = 1; seed <= games; seed++) {
-    const rng = createRng(seed);
-    const g = createGame({ salvo: true }, rng);
-    g.firstPlayer = seed % 2 === 0 ? 0 : 1;
-    const ais = [a(), b()];
-    applyAction(g, { type: 'ready', player: 0, layout: ais[0]!.placeFleet(rng) }, rng);
-    applyAction(g, { type: 'ready', player: 1, layout: ais[1]!.placeFleet(rng) }, rng);
-    while (g.phase !== 'over') {
-      const p = g.turn;
-      const enemy = g.players[other(p)];
-      const request = {
-        sea: [...enemy.sea],
-        damage: [...enemy.damage],
-        count: shotsAllowed(g, p),
-        fleet: enemy.layout!,
-      };
-      for (const cell of ais[p]!.chooseShots(request, rng)) {
-        applyAction(g, { type: 'toggleShot', player: p, cell }, rng);
-      }
-      applyAction(g, { type: 'fire', player: p }, rng);
-      applyAction(g, { type: 'advance' }, rng);
+/** A full game; 1 if `a` wins. Who goes first alternates with the seed. */
+function game(a: AiPlayer, b: AiPlayer, seed: number): number {
+  const rng = createRng(seed);
+  const g = createGame({ salvo: true }, rng);
+  g.firstPlayer = seed % 2 === 0 ? 0 : 1;
+  const ais = [a, b];
+  applyAction(g, { type: 'ready', player: 0, layout: a.placeFleet(rng) }, rng);
+  applyAction(g, { type: 'ready', player: 1, layout: b.placeFleet(rng) }, rng);
+  while (g.phase !== 'over') {
+    const p = g.turn;
+    const enemy = g.players[other(p)];
+    const request = {
+      sea: [...enemy.sea],
+      damage: [...enemy.damage],
+      count: shotsAllowed(g, p),
+      fleet: enemy.layout!,
+    };
+    for (const cell of ais[p]!.chooseShots(request, rng)) {
+      applyAction(g, { type: 'toggleShot', player: p, cell }, rng);
     }
-    if (g.winner === 0) aWins++;
-    salvos += g.turnNumber / 2;
+    applyAction(g, { type: 'fire', player: p }, rng);
+    applyAction(g, { type: 'advance' }, rng);
   }
-  return { aWins, meanSalvos: salvos / games };
+  return g.winner === 0 ? 1 : 0;
 }
 
-const current = configs.find(([n]) => n.endsWith('edge bonus 3'))![1];
-console.log(`\nHead to head, ${N} games each (current AI = density, edge bonus 3):`);
-for (const [name, makeAi] of configs) {
-  if (makeAi === current) continue;
-  const { aWins, meanSalvos } = headToHead(current, makeAi, N);
-  console.log(
-    `current vs ${name.padEnd(25)} wins ${String(aWins).padStart(3)}/${N} ` +
-      `(${((aWins / N) * 100).toFixed(0)}%), ~${meanSalvos.toFixed(1)} salvos each`,
-  );
+/** Sum over cases [from, to) of one column for one AI. */
+function run(name: string, column: Column, from: number, to: number): number {
+  let sum = 0;
+  for (let i = from; i < to; i++) {
+    const ai = AIS[name]!();
+    if (column === 'salvos, random' || column === 'salvos, edgy') {
+      const layout = (column === 'salvos, random' ? randomLayout : edgyLayout)(createRng(1000 + i));
+      sum += salvosToSink(layout, ai, createRng(i));
+    } else {
+      const opponent =
+        column === 'vs 2026'
+          ? simpleAi
+          : column === 'vs 1987'
+            ? createOriginalAi()
+            : { placeFleet: edgyLayout, chooseShots: simpleAi.chooseShots };
+      sum += game(ai, opponent, i);
+    }
+  }
+  return sum;
+}
+
+if (process.argv[2] === 'worker') {
+  const [name, column, from, to] = process.argv.slice(3);
+  process.send!(run(name!, column as Column, Number(from), Number(to)));
+} else {
+  const N = Number(process.argv[2] ?? 240);
+  const workers = cpus().length;
+  const part = (name: string, column: Column, w: number) =>
+    new Promise<number>((resolve, reject) => {
+      const from = Math.floor((N * w) / workers);
+      const to = Math.floor((N * (w + 1)) / workers);
+      const args = ['worker', name, column, String(from), String(to)];
+      const child = fork(new URL(import.meta.url).pathname, args, {
+        execArgv: ['--import', 'tsx'],
+      });
+      child.on('message', (m) => resolve(m as number));
+      child.on('error', reject);
+    });
+  console.log(`${N} fleets or games per cell\n`);
+  console.log(['AI'.padEnd(20), ...COLUMNS.map((c) => c.padStart(15))].join(''));
+  for (const name of Object.keys(AIS)) {
+    const cells: string[] = [];
+    for (const column of COLUMNS) {
+      const parts = await Promise.all(
+        Array.from({ length: workers }, (_, w) => part(name, column, w)),
+      );
+      const total = parts.reduce((a, b) => a + b, 0);
+      cells.push(
+        column.startsWith('salvos') ? (total / N).toFixed(2) : `${((total / N) * 100).toFixed(1)}%`,
+      );
+    }
+    console.log([name.padEnd(20), ...cells.map((c) => c.padStart(15))].join(''));
+  }
 }

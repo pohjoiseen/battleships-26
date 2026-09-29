@@ -138,7 +138,7 @@ describe('server', () => {
     p2.socket.close();
   });
 
-  it.each(['simple', 'original'])(
+  it.each(['simple', 'original', 'strong'])(
     'lets the %s AI place its fleet and take its turn in 1-player mode',
     async (ai) => {
       const { base, ws } = await start();

@@ -14,7 +14,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "bench:ai": "tsx packages/server/src/ai/bench.ts",
+    "bench:ai": "node --import tsx packages/server/src/ai/bench.ts",
     "logo": "tsx scripts/make-logo.ts"
   },
   "devDependencies": {
