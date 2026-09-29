@@ -42,7 +42,7 @@ import type { AiPlayer } from './types.ts';
 const AIS: Record<string, () => AiPlayer> = {
   '1987': createOriginalAi,
   '2026': () => simpleAi,
-  'ace, no lookahead': () => ({
+  'ace-no-lookahead': () => ({
     placeFleet: randomLayout,
     chooseShots: (request, rng) =>
       chooseShotsStrong(request, rng, { ...DEFAULT_STRONG, candidates: [8] }),
