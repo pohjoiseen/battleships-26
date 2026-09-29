@@ -7,6 +7,12 @@ export interface NetHandlers {
   connection(connected: boolean): void;
 }
 
+/**
+ * How long a connection may take to open before it is given up and tried again. Without this a
+ * stalled attempt waits for the system's TCP timeout, which can be a minute or more.
+ */
+const OPEN_TIMEOUT_MS = 4000;
+
 /** WebSocket link to the game server; reconnects on its own, and the server resends the view. */
 export class Net {
   private socket: WebSocket | null = null;
@@ -30,7 +36,10 @@ export class Net {
       `${proto}//${location.host}/ws?token=${encodeURIComponent(this.token)}`,
     );
     this.socket = socket;
+    // closing it runs onclose, which tries again
+    const timeout = setTimeout(() => socket.close(), OPEN_TIMEOUT_MS);
     socket.onopen = () => {
+      clearTimeout(timeout);
       this.retryMs = 500;
       this.handlers.connection(true);
     };
@@ -44,6 +53,7 @@ export class Net {
       }
     };
     socket.onclose = () => {
+      clearTimeout(timeout);
       this.handlers.connection(false);
       if (this.stopped) return;
       setTimeout(() => this.connect(), this.retryMs);
