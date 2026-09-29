@@ -10,9 +10,12 @@ export async function waitForScreen(page: Page, ...names: string[]) {
   });
 }
 
-export async function clickCell(page: Page, index: number) {
+export type Pointer = 'mouse' | 'touch';
+
+export async function clickCell(page: Page, index: number, pointer: Pointer = 'mouse') {
   const p = await page.evaluate((i) => window.__bs!.cellPoint(i), index);
-  await page.mouse.click(p.x, p.y);
+  if (pointer === 'touch') await page.touchscreen.tap(p.x, p.y);
+  else await page.mouse.click(p.x, p.y);
 }
 
 /** Clicks a canvas button once it is drawn and enabled (buttons update on the next frame). */
@@ -30,16 +33,16 @@ export async function startGame(page: Page, mode: '1p' | '2p') {
 }
 
 /** Places this turn's shots on the first unshot cells, by clicking the canvas; the last fires. */
-export async function takeTurn(page: Page) {
+export async function takeTurn(page: Page, pointer: Pointer = 'mouse') {
   const v = await view(page);
   const sea = v.seas[v.turn === 0 ? 1 : 0].shots;
   const targets = sea.flatMap((s, i) => (s === 0 ? [i] : [])).slice(0, v.shotsAllowed);
-  for (const cell of targets) await clickCell(page, cell);
+  for (const cell of targets) await clickCell(page, cell, pointer);
   await waitForScreen(page, 'salvo', 'results', 'over-message', 'winners');
 }
 
 /** Plays whenever it is this page's turn until the game is over. */
-export async function playToTheEnd(page: Page) {
+export async function playToTheEnd(page: Page, pointer: Pointer = 'mouse') {
   for (let guard = 0; guard < 400; guard++) {
     await page.waitForFunction(
       () => {
@@ -53,7 +56,7 @@ export async function playToTheEnd(page: Page) {
     );
     const s = await screenName(page);
     if (s === 'over-message' || s === 'winners') return;
-    await takeTurn(page);
+    await takeTurn(page, pointer);
   }
   throw new Error('game did not finish');
 }
