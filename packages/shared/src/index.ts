@@ -6,3 +6,4 @@ export * from './game.ts';
 export * from './timing.ts';
 export * from './views.ts';
 export * from './protocol.ts';
+export * from './scoring.ts';
