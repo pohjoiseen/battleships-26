@@ -31,13 +31,14 @@ import {
  * Our cells are row 0 at the bottom, the original's row 0 at the top; ship numbers are our ids
  * plus one. The AI sees the enemy's real fleet, as the original's did: it peeks at it.
  */
-export function createOriginalAi(): AiPlayer {
-  let st: AiState | null = null;
+export function createOriginalAi(saved?: AiState): AiPlayer {
+  let st: AiState | null = saved ? structuredClone(saved) : null;
   const state = (rng: Rng) => (st ??= initialState(rng.int(2 ** 32)));
 
   return {
     placeFleet: (rng) => layoutFromBoard(placeFleet(state(rng))),
     chooseShots: (request, rng) => chooseShots(state(rng), request, rng),
+    save: () => structuredClone(st),
   };
 }
 

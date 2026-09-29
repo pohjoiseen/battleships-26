@@ -15,4 +15,6 @@ export interface AiPlayer {
   placeFleet(rng: Rng): Layout;
   /** Distinct, not-yet-shot cells; exactly `count` of them. */
   chooseShots(request: ShotRequest, rng: Rng): number[];
+  /** What it remembers between turns, as JSON, for AIs that remember anything. */
+  save?(): unknown;
 }

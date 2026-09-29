@@ -5,6 +5,8 @@ export interface Rng {
   int(n: number): number;
   pick<T>(items: readonly T[]): T;
   shuffle<T>(items: T[]): T[];
+  /** Where the sequence has got to; createRng(state()) carries on from here. */
+  state(): number;
 }
 
 /** Small seeded PRNG (mulberry32), good enough for games and reproducible tests. */
@@ -32,6 +34,7 @@ export function createRng(seed: number): Rng {
       }
       return items;
     },
+    state: () => a,
   };
 }
 

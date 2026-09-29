@@ -60,4 +60,20 @@ describe('original AI in our game', () => {
     expect(turns / games).toBeGreaterThan(10);
     expect(turns / games).toBeLessThan(60);
   });
+
+  it('carries on the same after being saved and restored, as when a game is reloaded', () => {
+    // an AI that is saved and rebuilt from its save after every move
+    const reloaded = (): AiPlayer => {
+      let ai = createOriginalAi();
+      const reload = <T>(result: T) => ((ai = createOriginalAi(ai.save!() as never)), result);
+      return {
+        placeFleet: (rng) => reload(ai.placeFleet(rng)),
+        chooseShots: (request, rng) => reload(ai.chooseShots(request, rng)),
+      };
+    };
+    for (let seed = 1; seed <= 5; seed++) {
+      const straight = play([createOriginalAi(), createOriginalAi()], createRng(seed));
+      expect(play([reloaded(), reloaded()], createRng(seed))).toEqual(straight);
+    }
+  });
 });
