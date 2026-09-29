@@ -305,6 +305,12 @@ function pickSalvoLookahead(
   return best;
 }
 
+/**
+ * Turns a playout lasts at most. With salvo fire most games are over by then; with 4 shots a
+ * turn, playing to the end would take far too long.
+ */
+const PLAYOUT_TURNS = 12;
+
 /** Plays a salvo, then the rest of the game, against a known fleet: sum of the ships' turns afloat. */
 function playOut(
   request: ShotRequest,
@@ -323,7 +329,7 @@ function playOut(
   let afloat = sizes.filter((size, s) => damage[FLEET[s]!.id]! < size).length;
   let total = 0;
   let salvo = first;
-  for (let turn = 1; afloat > 0 && turn < 30; turn++) {
+  for (let turn = 1; afloat > 0 && turn <= PLAYOUT_TURNS; turn++) {
     for (const c of salvo) {
       const s = owner[c]!;
       if (s >= 0) {

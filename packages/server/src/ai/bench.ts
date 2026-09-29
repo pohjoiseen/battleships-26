@@ -26,8 +26,10 @@ import { chooseShotsStrong, DEFAULT_STRONG, strongAi } from './strong.ts';
 import type { AiPlayer } from './types.ts';
 
 /**
- * Compares the AIs, in parallel over all cores. `npm run bench:ai [N]` (default 240; the
- * strong AI takes a few minutes per column at that). With N games, win rates are good to about
+ * Compares the AIs, in parallel over all cores:
+ *   npm run bench:ai -- [N] [--no-salvo] [--only name,name]
+ * N defaults to 240 (ACE takes a few minutes per column at that). --no-salvo plays with salvo
+ * fire off: 4 shots a turn, also in the salvos-to-sink columns (which then count turns). With N games, win rates are good to about
  * +-45/sqrt(N) points and salvo counts to about +-1.6/sqrt(N).
  *
  *   salvos:  mean 24-shot salvos to sink a fleet, random or hugging the edge like people's
@@ -99,7 +101,7 @@ function salvosToSink(layout: Layout, ai: AiPlayer, rng: Rng): number {
     const request = {
       sea: [...sea],
       damage: [...damage],
-      count: Math.min(24, left),
+      count: Math.min(SALVO ? 24 : 4, left),
       fleet: layout,
     };
     for (const c of ai.chooseShots(request, rng)) {
@@ -115,7 +117,7 @@ function salvosToSink(layout: Layout, ai: AiPlayer, rng: Rng): number {
 /** A full game; 1 if `a` wins. Who goes first alternates with the seed. */
 function game(a: AiPlayer, b: AiPlayer, seed: number): number {
   const rng = createRng(seed);
-  const g = createGame({ salvo: true }, rng);
+  const g = createGame({ salvo: SALVO }, rng);
   g.firstPlayer = seed % 2 === 0 ? 0 : 1;
   const ais = [a, b];
   applyAction(g, { type: 'ready', player: 0, layout: a.placeFleet(rng) }, rng);
@@ -159,26 +161,37 @@ function run(name: string, column: Column, from: number, to: number): number {
   return sum;
 }
 
-if (process.argv[2] === 'worker') {
-  const [name, column, from, to] = process.argv.slice(3);
+const flags = process.argv.slice(2);
+const SALVO = !flags.includes('--no-salvo');
+const only = flags.includes('--only') ? flags[flags.indexOf('--only') + 1]!.split(',') : null;
+
+if (flags[0] === 'worker') {
+  const [name, column, from, to] = flags.slice(1);
   process.send!(run(name!, column as Column, Number(from), Number(to)));
 } else {
-  const N = Number(process.argv[2] ?? 240);
+  const N = Number(flags.find((f) => /^\d+$/.test(f)) ?? 240);
   const workers = cpus().length;
   const part = (name: string, column: Column, w: number) =>
     new Promise<number>((resolve, reject) => {
       const from = Math.floor((N * w) / workers);
       const to = Math.floor((N * (w + 1)) / workers);
-      const args = ['worker', name, column, String(from), String(to)];
+      const args = [
+        'worker',
+        name,
+        column,
+        String(from),
+        String(to),
+        ...(SALVO ? [] : ['--no-salvo']),
+      ];
       const child = fork(new URL(import.meta.url).pathname, args, {
         execArgv: ['--import', 'tsx'],
       });
       child.on('message', (m) => resolve(m as number));
       child.on('error', reject);
     });
-  console.log(`${N} fleets or games per cell\n`);
+  console.log(`${N} fleets or games per cell, salvo fire ${SALVO ? 'on' : 'off'}\n`);
   console.log(['AI'.padEnd(20), ...COLUMNS.map((c) => c.padStart(15))].join(''));
-  for (const name of Object.keys(AIS)) {
+  for (const name of Object.keys(AIS).filter((n) => !only || only.includes(n))) {
     const cells: string[] = [];
     for (const column of COLUMNS) {
       const parts = await Promise.all(
