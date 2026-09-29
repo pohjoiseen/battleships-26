@@ -659,16 +659,7 @@ class Picker {
    */
   private newArea(): void {
     const st = this.st;
-    if (this.stats.untouched >= 2) {
-      st.lineMode = 1;
-      st.blockShots = 12;
-      for (;;) {
-        const d = (rand(st) & 0x0f) + 2;
-        const e = (rand(st) & 0x0f) + 2;
-        this.target = { d, e };
-        if (this.cell(this.target) !== 0) continue;
-        if (this.roomForShip(this.target)) break;
-      }
+    if (this.stats.untouched >= 2 && this.lineStart()) {
       st.lineDir = rand(st) & 7;
       return;
     }
@@ -685,6 +676,39 @@ class Picker {
       if (--tries === 0) break;
     }
     this.setArea(c, this.stats.untouched);
+  }
+
+  /**
+   * $AB81: a random open cell for a line to start from, 2..17 in both directions. Two calls in
+   * a row share 3 bits of the shift register, so the original only ever tries 32 cells: the
+   * row's top 3 bits are the column's bottom 3. Once all 32 are taken, the Spectrum hangs here
+   * for good. We don't: we take any cell that would do instead, or give up on lines.
+   */
+  private lineStart(): boolean {
+    const st = this.st;
+    const usable = (p: Pos) => this.cell(p) === 0 && this.roomForShip(p);
+    const reachable = Array.from({ length: 32 }, (_, i) => ({
+      d: (i >> 1) + 2,
+      e: ((((i >> 1) << 1) | (i & 1)) & 0x0f) + 2,
+    }));
+    if (reachable.some(usable)) {
+      st.lineMode = 1;
+      st.blockShots = 12;
+      for (;;) {
+        const d = (rand(st) & 0x0f) + 2;
+        const e = (rand(st) & 0x0f) + 2;
+        this.target = { d, e };
+        if (usable(this.target)) return true;
+      }
+    }
+    const open: Pos[] = [];
+    for (let e = 2; e < 18; e++)
+      for (let d = 2; d < 18; d++) if (usable({ d, e })) open.push({ d, e });
+    if (open.length === 0) return false;
+    st.lineMode = 1;
+    st.blockShots = 12;
+    this.target = open[((rand(st) << 8) | rand(st)) % open.length]!;
+    return true;
   }
 
   /** $ABD0: hunt in a block from its centre. */
