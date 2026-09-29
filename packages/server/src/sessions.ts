@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { createRng, type GameSettings, type PlayerIndex, randomSeed } from '@bs/shared';
-import { AI_PLAYERS } from './ai/index.ts';
+import { AI_PLAYERS, type AiKind } from './ai/index.ts';
 import { Room } from './room.ts';
 
 export interface SessionOptions {
@@ -28,14 +28,14 @@ export class Sessions {
   constructor(private readonly opts: SessionOptions) {}
 
   /** Creates a game and returns player 1's token. */
-  create(mode: '1p' | '2p', settings: GameSettings): string {
+  create(mode: '1p' | '2p', settings: GameSettings, ai: AiKind = 'simple'): string {
     const seed = this.opts.seed !== undefined ? this.opts.seed + this.created : randomSeed();
     this.created++;
     const invite = mode === '2p' ? newToken() : null;
     const room = new Room({
       settings,
       rng: createRng(seed),
-      ai: mode === '1p' ? AI_PLAYERS.simple : null,
+      ai: mode === '1p' ? AI_PLAYERS[ai]() : null,
       timeScale: this.opts.timeScale,
       // derived from the seed rather than drawn from the rng, so seeded games play the same
       chartSeed: (seed ^ 0x5bd1e995) >>> 0,

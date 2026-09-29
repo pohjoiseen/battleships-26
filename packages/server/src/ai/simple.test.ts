@@ -29,7 +29,7 @@ function play(a: AiPlayer, b: AiPlayer, rng: Rng, salvo = true) {
     const count = shotsAllowed(g, p);
     const enemy = g.players[other(p)];
     const shots = ais[p].chooseShots(
-      { sea: [...enemy.sea], damage: [...enemy.damage], count },
+      { sea: [...enemy.sea], damage: [...enemy.damage], count, fleet: enemy.layout! },
       rng,
     );
     expect(new Set(shots).size).toBe(count);

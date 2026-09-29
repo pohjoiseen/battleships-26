@@ -141,7 +141,12 @@ export class Room {
     this.aiBusy = true;
     const enemy = this.state.players[0];
     const shots = ai.chooseShots(
-      { sea: [...enemy.sea], damage: [...enemy.damage], count: shotsAllowed(this.state, 1) },
+      {
+        sea: [...enemy.sea],
+        damage: [...enemy.damage],
+        count: shotsAllowed(this.state, 1),
+        fleet: enemy.layout!,
+      },
       this.opts.rng,
     );
     // the last shot fires the salvo (see apply)

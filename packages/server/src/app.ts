@@ -25,7 +25,8 @@ export async function buildApp(opts: AppOptions) {
   app.post('/api/games', async (req, reply) => {
     const parsed = createGameRequest.safeParse(req.body ?? {});
     if (!parsed.success) return reply.code(400).send({ error: 'bad request' });
-    const token = sessions.create(parsed.data.mode, { salvo: parsed.data.salvo });
+    const { mode, salvo, ai } = parsed.data;
+    const token = sessions.create(mode, { salvo }, ai);
     return { url: `/g/${token}` } satisfies CreateGameResponse;
   });
 

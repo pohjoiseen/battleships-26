@@ -33,6 +33,8 @@ export type ServerMessage =
 export const createGameRequest = z.object({
   mode: z.enum(['1p', '2p']),
   salvo: z.boolean().default(true),
+  /** The computer player in a one-player game: the original's, or our own. */
+  ai: z.enum(['original', 'simple']).default('simple'),
 });
 
 export type CreateGameRequest = z.infer<typeof createGameRequest>;

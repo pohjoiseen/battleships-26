@@ -53,11 +53,11 @@ function client(url: string) {
   return { socket, messages, next, view, send, opened: new Promise((r) => socket.once('open', r)) };
 }
 
-async function createGame(base: string, mode: '1p' | '2p', salvo = true) {
+async function createGame(base: string, mode: '1p' | '2p', salvo = true, ai?: string) {
   const res = await fetch(`${base}/api/games`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ mode, salvo }),
+    body: JSON.stringify({ mode, salvo, ai }),
   });
   expect(res.status).toBe(200);
   const { url } = (await res.json()) as { url: string };
@@ -138,27 +138,30 @@ describe('server', () => {
     p2.socket.close();
   });
 
-  it('lets the AI place its fleet and take its turn in 1-player mode', async () => {
-    const { base, ws } = await start();
-    const token = await createGame(base, '1p');
-    const p1 = client(`${ws}/ws?token=${token}`);
-    const v = await p1.view();
-    expect(v.opponent.kind).toBe('ai');
-    expect(v.ready[1]).toBe(true);
-    p1.send({ t: 'ready', layout: v.yourLayout });
+  it.each(['simple', 'original'])(
+    'lets the %s AI place its fleet and take its turn in 1-player mode',
+    async (ai) => {
+      const { base, ws } = await start();
+      const token = await createGame(base, '1p', true, ai);
+      const p1 = client(`${ws}/ws?token=${token}`);
+      const v = await p1.view();
+      expect(v.opponent.kind).toBe('ai');
+      expect(v.ready[1]).toBe(true);
+      p1.send({ t: 'ready', layout: v.yourLayout });
 
-    const view = await p1.view((x) => x.phase === 'aiming');
-    if (view.turn === 0) {
-      for (let cell = 0; cell < view.shotsAllowed; cell++) p1.send({ t: 'toggleShot', cell });
-      await p1.view((x) => x.phase === 'aiming' && x.turn === 1);
-    }
-    // watch the AI aim (cursor messages) and fire
-    await p1.next((m) => m.t === 'cursor' && m.cell !== null);
-    const after = await p1.view((x) => x.phase === 'resolving' && x.lastSalvo?.shooter === 1);
-    expect(after.lastSalvo!.shots).toHaveLength(24);
-    expect(after.seas[0].shots.filter((s) => s !== 0)).toHaveLength(24);
-    p1.socket.close();
-  });
+      const view = await p1.view((x) => x.phase === 'aiming');
+      if (view.turn === 0) {
+        for (let cell = 0; cell < view.shotsAllowed; cell++) p1.send({ t: 'toggleShot', cell });
+        await p1.view((x) => x.phase === 'aiming' && x.turn === 1);
+      }
+      // watch the AI aim (cursor messages) and fire
+      await p1.next((m) => m.t === 'cursor' && m.cell !== null);
+      const after = await p1.view((x) => x.phase === 'resolving' && x.lastSalvo?.shooter === 1);
+      expect(after.lastSalvo!.shots).toHaveLength(24);
+      expect(after.seas[0].shots.filter((s) => s !== 0)).toHaveLength(24);
+      p1.socket.close();
+    },
+  );
 
   it('keeps the game going across a reconnect', async () => {
     const { base, ws } = await start();
