@@ -10,6 +10,7 @@ Needs Python 3 with [SkoolKit](https://skoolkit.ca/) 10:
 python -m venv .venv && .venv/bin/pip install skoolkit
 .venv/bin/python snapshot.py      # downloads the tape, writes .cache/boot.z80 and .cache/game.z80
 .venv/bin/python fixtures.py 1500 # runs the AI on random situations -> fixtures.json.gz
+.venv/bin/python disasm.py        # ai.ctl -> docs/original-ai.asm
 ```
 
 - `zx.py`: a small scriptable Spectrum on SkoolKit's simulator: run frames, hold keys, save
@@ -23,6 +24,9 @@ python -m venv .venv && .venv/bin/pip install skoolkit
   Also records $A3FD (fleet placement) for random seeds. It prints the AI instructions no case
   reached; the few left are unreachable (carries that never happen, the code after the bug at
   $9B88) or very rare (the cruiser search running all 50 rounds).
+
+- `disasm.py`: the annotated disassembly. Labels and comments live in `ai.ctl` (a SkoolKit
+  control file); it checks that every comment covers whole instructions.
 
 Handy addresses: boards at $6100 (player 1) and $6300 (player 2), 20x20 bytes, row 0 at the
 top; $A4D8 points at the board being shot at; $FD58 is the player on turn (1 = computer in a
