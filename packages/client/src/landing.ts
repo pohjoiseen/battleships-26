@@ -1,4 +1,12 @@
-import type { AiKind, AisResponse, CreateGameResponse } from '@bs/shared';
+import {
+  type AiKind,
+  type AisResponse,
+  type CreateGameResponse,
+  hiscoreBoard,
+  type HiscoresResponse,
+  type HiscoreTable,
+} from '@bs/shared';
+import { boardLabel, drawTable } from './game/hiscores.ts';
 import { drawScene } from './game/sailpast.ts';
 import { drawSplash } from './game/salvo.ts';
 import { drawText } from './gfx/font.ts';
@@ -11,12 +19,18 @@ import { sound } from './gfx/sound.ts';
  * The title and menu, drawn like the game on a 400x300 screen scaled to the window: the logo
  * over the sunset, a Soviet and an American cruiser trading shots, and the original's numbered
  * menu. Invisible buttons lie over the menu rows, so it works with screen readers and tabbing.
- * In a portrait window the screen is taller, with bigger rows that are easier to tap.
+ * In a portrait window the screen is taller, with bigger rows that are easier to tap. The last
+ * item shows the hi-score tables, one at a time, in place of the menu.
  */
 
 const canvas = document.querySelector<HTMLCanvasElement>('#screen')!;
 const status = document.querySelector<HTMLElement>('#status')!;
+const menuNav = document.querySelector<HTMLElement>('#menu')!;
 const buttons = [...document.querySelectorAll<HTMLButtonElement>('#menu button')];
+const scoresNav = document.querySelector<HTMLElement>('#scores')!;
+const [prevButton, nextButton, backButton] = [
+  ...document.querySelectorAll<HTMLButtonElement>('#scores button'),
+] as [HTMLButtonElement, HTMLButtonElement, HTMLButtonElement];
 const screen = new Screen(canvas);
 const ctx = screen.ctx;
 
@@ -49,24 +63,36 @@ let selected = 0;
 const touch = matchMedia('(pointer: coarse)').matches;
 let message = '';
 
+type Rect = { x: number; y: number; w: number; h: number };
+
 interface Layout {
   h: number;
-  menu: { x: number; y: number; w: number; h: number };
+  menu: Rect;
   rowH: number;
-  /** Top of the credits band at the bottom. */
+  /** The hi-scores box, and the height of its rows with something to tap (arrows, BACK). */
+  scores: Rect;
+  navH: number;
+  /** Top of the credits band at the bottom, and its line spacing. */
   creditsY: number;
+  creditsLine: number;
 }
 const LANDSCAPE: Layout = {
   h: LH,
-  menu: { x: 64, y: 172, w: 272, h: 80 },
+  menu: { x: 64, y: 166, w: 272, h: 95 },
   rowH: 15,
-  creditsY: 256,
+  scores: { x: 64, y: 90, w: 272, h: 171 },
+  navH: 16,
+  creditsY: 263,
+  creditsLine: 10,
 };
 const PORTRAIT: Layout = {
-  h: 410,
-  menu: { x: 44, y: 190, w: 312, h: 160 },
+  h: 430,
+  menu: { x: 44, y: 190, w: 312, h: 190 },
   rowH: 30,
-  creditsY: 366,
+  scores: { x: 44, y: 182, w: 312, h: 198 },
+  navH: 28,
+  creditsY: 386,
+  creditsLine: 12,
 };
 let L = LANDSCAPE;
 const rowY = (i: number) => L.menu.y + 5 + i * L.rowH;
@@ -77,20 +103,116 @@ const items = () => [
   `COMPUTER   - ${AIS[ai]!.label}`,
   `SALVO FIRE - ${salvo ? 'ON' : 'OFF'}`,
   `SOUND      - ${sound.muted ? 'OFF' : 'ON'}`,
+  'HI-SCORES',
 ];
+
+// ---- the hi-scores page ----
+
+let page: 'menu' | 'scores' = 'menu';
+let tables: HiscoreTable[] | null = null;
+let tableIndex = 0;
+let scoresError = false;
+
+/** Where the hi-score box's parts are: the row with the arrows, the table, the BACK row. */
+const scoresParts = () => {
+  const b = L.scores;
+  const nav = { x: b.x + 4, y: b.y + 4, w: b.w - 8, h: L.navH };
+  const table = { x: b.x + 14, y: nav.y + nav.h + 6, w: b.w - 28 };
+  const back = { x: b.x + 4, y: b.y + b.h - 4 - L.navH, w: b.w - 8, h: L.navH };
+  return { nav, table, back };
+};
+
+function openScores() {
+  page = 'scores';
+  menuNav.hidden = true;
+  scoresNav.hidden = false;
+  nextButton.focus();
+  scoresError = false;
+  void fetch('/api/hiscores')
+    .then((res) => (res.ok ? (res.json() as Promise<HiscoresResponse>) : Promise.reject()))
+    .then((r) => {
+      tables = r.tables;
+      // start on the table for the game the menu is set up for
+      const board = hiscoreBoard(AIS[ai]!.id, salvo);
+      tableIndex = Math.max(
+        0,
+        tables.findIndex((t) => t.board === board),
+      );
+      announceTable();
+    })
+    .catch(() => {
+      scoresError = true;
+      status.textContent = 'COULD NOT LOAD THE HI-SCORES';
+    });
+}
+
+function closeScores() {
+  page = 'menu';
+  scoresNav.hidden = true;
+  menuNav.hidden = false;
+  buttons[5]!.focus();
+}
+
+function turnTable(step: 1 | -1) {
+  if (!tables?.length) return;
+  sound.play('type');
+  tableIndex = (tableIndex + step + tables.length) % tables.length;
+  announceTable();
+}
+
+/** Reads the table out to screen readers. */
+function announceTable() {
+  const t = tables?.[tableIndex];
+  if (!t) return;
+  const rows = t.entries.map((e, k) => `${k + 1}. ${e.name}, ${e.score}`);
+  status.textContent = `${boardLabel(t.board)}: ${rows.join('; ') || 'no scores yet'}`;
+}
+
+prevButton.addEventListener('click', () => turnTable(-1));
+nextButton.addEventListener('click', () => turnTable(1));
+backButton.addEventListener('click', closeScores);
+
+function drawScores(t: number) {
+  const b = L.scores;
+  const { nav, table, back } = scoresParts();
+  ctx.fillStyle = C.red;
+  ctx.fillRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4);
+  ctx.fillStyle = C.black;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+
+  const mid = (r: { y: number; h: number }) => r.y + Math.floor((r.h - 8) / 2);
+  const current = tables?.[tableIndex];
+  const heading = current
+    ? boardLabel(current.board)
+    : scoresError
+      ? 'NO CONNECTION'
+      : 'LOADING...';
+  drawText(ctx, '<', nav.x + 8, mid(nav), C.brightYellow, { bold: true });
+  drawText(ctx, '>', nav.x + nav.w - 8, mid(nav), C.brightYellow, { bold: true, align: 'right' });
+  drawText(ctx, heading, b.x + b.w / 2, mid(nav), C.brightCyan, { align: 'center', bold: true });
+  drawTable(ctx, current?.entries ?? [], table.x, table.y, table.w);
+  const focused = document.activeElement === backButton || Math.floor(t / 600) % 2 === 0;
+  ctx.fillStyle = focused ? C.red : C.black;
+  ctx.fillRect(back.x, back.y, back.w, back.h);
+  drawText(ctx, 'BACK', b.x + b.w / 2, mid(back), C.brightWhite, { align: 'center', bold: true });
+}
 
 /** Picks the layout for the window; the buttons sit over their rows, in percentages of the screen. */
 function layOut() {
   L = isPortrait() ? PORTRAIT : LANDSCAPE;
   screen.setSize(LW, L.h);
-  buttons.forEach((b, i) => {
+  const place = (b: HTMLElement, r: Rect) =>
     Object.assign(b.style, {
-      left: `${(L.menu.x / LW) * 100}%`,
-      top: `${((rowY(i) - 1) / L.h) * 100}%`,
-      width: `${(L.menu.w / LW) * 100}%`,
-      height: `${(L.rowH / L.h) * 100}%`,
+      left: `${(r.x / LW) * 100}%`,
+      top: `${(r.y / L.h) * 100}%`,
+      width: `${(r.w / LW) * 100}%`,
+      height: `${(r.h / L.h) * 100}%`,
     });
-  });
+  buttons.forEach((b, i) => place(b, { ...L.menu, y: rowY(i) - 1, h: L.rowH }));
+  const { nav, back } = scoresParts();
+  place(prevButton, { ...nav, w: nav.w / 3 });
+  place(nextButton, { ...nav, x: nav.x + (nav.w * 2) / 3, w: nav.w / 3 });
+  place(backButton, back);
 }
 layOut();
 window.addEventListener('resize', layOut);
@@ -113,7 +235,8 @@ function activate(i: number) {
   else if (i === 1) void start('2p');
   else if (i === 2) ai = (ai + 1) % AIS.length;
   else if (i === 3) salvo = !salvo;
-  else sound.toggleMute();
+  else if (i === 4) sound.toggleMute();
+  else openScores();
   syncButtons();
 }
 
@@ -147,6 +270,14 @@ async function start(mode: '1p' | '2p') {
 // focused button); C, S and M toggle the computer player, salvo fire and sound.
 window.addEventListener('keydown', (e) => {
   sound.unlock();
+  if (page === 'scores') {
+    if (e.key === 'ArrowLeft') turnTable(-1);
+    else if (e.key === 'ArrowRight') turnTable(1);
+    else if (e.key === 'Escape' || e.key === 'Backspace') closeScores();
+    else return;
+    e.preventDefault();
+    return;
+  }
   const n = Number(e.key);
   if (n >= 1 && n <= buttons.length) activate(n - 1);
   else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -156,6 +287,7 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key === 'c' || e.key === 'C') activate(2);
   else if (e.key === 's' || e.key === 'S') activate(3);
   else if (e.key === 'm' || e.key === 'M') activate(4);
+  else if (e.key === 'h' || e.key === 'H') activate(5);
   else return;
   e.preventDefault();
 });
@@ -167,7 +299,7 @@ const SHIPS = [
   { cx: 92, faction: 'ussr' as const, flip: false },
   { cx: 312, faction: 'usa' as const, flip: true },
 ];
-const WATERLINE = 168;
+const WATERLINE = 162;
 const VOLLEY_MS = 3000;
 
 /** Every few seconds one cruiser fires at the other, and the shell falls just short. */
@@ -244,15 +376,19 @@ function drawCredits() {
   ctx.fillRect(0, y + 2, LW, 1);
   ctx.fillStyle = C.black;
   ctx.fillRect(0, y, LW, 2);
-  const line = (text: string, dy: number, colour: string) =>
-    drawText(ctx, text, LW / 2, y + dy, colour, { align: 'center' });
-  line('A REMAKE OF BATTLE SHIPS - HIT-PAK 1987', 8, C.brightWhite);
-  line('FOR THE ZX SPECTRUM', 19, C.brightCyan);
-  line(
-    message || (touch ? 'TAP 1 OR 2 TO PLAY' : 'PRESS 1 OR 2 TO PLAY, M FOR SOUND'),
-    31,
-    message ? C.brightYellow : C.white,
-  );
+  const line = (text: string, k: number, colour: string) =>
+    drawText(ctx, text, LW / 2, y + 7 + k * L.creditsLine, colour, { align: 'center' });
+  line('A REMAKE OF BATTLE SHIPS - HIT-PAK 1987', 0, C.brightWhite);
+  line('FOR THE ZX SPECTRUM', 1, C.brightCyan);
+  const hint =
+    page === 'scores'
+      ? touch
+        ? 'TAP < OR > FOR THE OTHER TABLES'
+        : 'LEFT/RIGHT: OTHER TABLES, ESC: BACK'
+      : touch
+        ? 'TAP 1 OR 2 TO PLAY'
+        : 'PRESS 1 OR 2 TO PLAY, M FOR SOUND';
+  line(message || hint, 2, message ? C.brightYellow : C.white);
 }
 
 function frame(t: number) {
@@ -260,8 +396,12 @@ function frame(t: number) {
   if (logo.complete && logo.naturalWidth) {
     ctx.drawImage(logo, Math.round((LW - logo.naturalWidth) / 2), 30);
   }
-  drawDuel(t);
-  drawMenu();
+  if (page === 'scores') {
+    drawScores(t);
+  } else {
+    drawDuel(t);
+    drawMenu();
+  }
   drawCredits();
   screen.present();
   requestAnimationFrame(frame);

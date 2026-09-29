@@ -108,7 +108,13 @@ body.landing {
   position: relative;
 }
 
-#menu button {
+#menu[hidden],
+#scores[hidden] {
+  display: none;
+}
+
+#menu button,
+#scores button {
   position: absolute;
   opacity: 0;
   margin: 0;

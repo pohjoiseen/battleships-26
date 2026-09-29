@@ -44,6 +44,12 @@ test('a whole game against the computer', async ({ page }) => {
   expect(table.find((e) => e.you)?.name).toBe('E2E TESTER');
   await clickButton(page, 'new');
   await page.waitForURL(/\/$/);
+  // the menu's hi-scores open on the table for the game it's set up for, this one's (other
+  // tests' games may be in it too)
+  await page.getByRole('button', { name: 'HI-SCORES' }).click();
+  await expect(page.locator('#status')).toContainText(/^VS COMPUTER 1987: .*E2E TESTER/);
+  await page.getByRole('button', { name: 'BACK' }).click();
+  await expect(page.getByRole('button', { name: '1 PLAYER' })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
