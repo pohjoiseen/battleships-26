@@ -68,14 +68,15 @@ export function sailPastDuration(winner: PlayerIndex, damage: readonly number[])
   return Math.round(travel / SPEED) + 600;
 }
 
-let backdrop: HTMLCanvasElement | null = null;
+const backdrops = new Map<number, HTMLCanvasElement>();
 
-/** Sky, sun and sea; drawn once. */
-function backdropImage(): HTMLCanvasElement {
-  if (backdrop) return backdrop;
+/** Sky, sun and sea down to `h`; drawn once for each height. */
+function backdropImage(h: number): HTMLCanvasElement {
+  const cached = backdrops.get(h);
+  if (cached) return cached;
   const c = document.createElement('canvas');
   c.width = LW;
-  c.height = LH;
+  c.height = h;
   const ctx = c.getContext('2d')!;
   const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
   // the sky darkens upwards through sunset colours, dithered like the Spectrum would
@@ -104,26 +105,30 @@ function backdropImage(): HTMLCanvasElement {
     ctx.fillRect(SUN.x - half, y, half * 2 + 1, 1);
   }
   ctx.fillStyle = C.blue;
-  ctx.fillRect(0, HORIZON, LW, LH - HORIZON);
+  ctx.fillRect(0, HORIZON, LW, h - HORIZON);
   ctx.fillStyle = C.magenta;
   ctx.fillRect(0, HORIZON, LW, 1);
-  return (backdrop = c);
+  backdrops.set(h, c);
+  return c;
 }
 
-/** The backdrop plus the moving water: wave dashes, and the sun's glitter path. */
-export function drawScene(ctx: CanvasRenderingContext2D, t: number) {
-  ctx.drawImage(backdropImage(), 0, 0);
+/**
+ * The backdrop plus the moving water: wave dashes, and the sun's glitter path. The sea reaches
+ * down to `h` (taller than the screen for the portrait menu).
+ */
+export function drawScene(ctx: CanvasRenderingContext2D, t: number, h = LH) {
+  ctx.drawImage(backdropImage(h), 0, 0);
   const rng = createRng(3);
   for (let k = 0; k < 110; k++) {
     const depth = rng.next() ** 1.5;
-    const y = Math.round(HORIZON + 2 + depth * (LH - HORIZON - 4));
+    const y = Math.round(HORIZON + 2 + depth * (h - HORIZON - 4));
     const len = 2 + Math.round(depth * 9);
     const x = (((rng.next() * LW - t * 0.006 * (1 + depth * 3)) % LW) + LW) % LW;
     ctx.fillStyle = rng.next() < 0.25 ? C.cyan : C.brightBlue;
     ctx.fillRect(Math.round(x), y, len, 1);
   }
   // glitter under the sun, widening towards us
-  for (let y = HORIZON + 1; y < LH; y += 2) {
+  for (let y = HORIZON + 1; y < h; y += 2) {
     const spread = 6 + (y - HORIZON) * 0.35;
     const n = 1 + Math.floor((y - HORIZON) / 25);
     for (let k = 0; k < n; k++) {

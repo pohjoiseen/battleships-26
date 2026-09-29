@@ -3,7 +3,7 @@ import { drawScene } from './game/sailpast.ts';
 import { drawSplash } from './game/salvo.ts';
 import { drawText } from './gfx/font.ts';
 import { C } from './gfx/palette.ts';
-import { LW, Screen } from './gfx/screen.ts';
+import { isPortrait, LH, LW, Screen } from './gfx/screen.ts';
 import { drawShipCentred } from './gfx/ships.ts';
 import { sound } from './gfx/sound.ts';
 
@@ -11,6 +11,7 @@ import { sound } from './gfx/sound.ts';
  * The title and menu, drawn like the game on a 400x300 screen scaled to the window: the logo
  * over the sunset, a Soviet and an American cruiser trading shots, and the original's numbered
  * menu. Invisible buttons lie over the menu rows, so it works with screen readers and tabbing.
+ * In a portrait window the screen is taller, with bigger rows that are easier to tap.
  */
 
 const canvas = document.querySelector<HTMLCanvasElement>('#screen')!;
@@ -45,11 +46,30 @@ void fetch('/api/ais')
   .catch(() => {});
 
 let selected = 0;
+const touch = matchMedia('(pointer: coarse)').matches;
 let message = '';
 
-const MENU = { x: 64, y: 172, w: 272, h: 80 };
-const ROW_H = 15;
-const rowY = (i: number) => MENU.y + 5 + i * ROW_H;
+interface Layout {
+  h: number;
+  menu: { x: number; y: number; w: number; h: number };
+  rowH: number;
+  /** Top of the credits band at the bottom. */
+  creditsY: number;
+}
+const LANDSCAPE: Layout = {
+  h: LH,
+  menu: { x: 64, y: 172, w: 272, h: 80 },
+  rowH: 15,
+  creditsY: 256,
+};
+const PORTRAIT: Layout = {
+  h: 410,
+  menu: { x: 44, y: 190, w: 312, h: 160 },
+  rowH: 30,
+  creditsY: 366,
+};
+let L = LANDSCAPE;
+const rowY = (i: number) => L.menu.y + 5 + i * L.rowH;
 
 const items = () => [
   '1 PLAYER',
@@ -59,14 +79,23 @@ const items = () => [
   `SOUND      - ${sound.muted ? 'OFF' : 'ON'}`,
 ];
 
-// the buttons sit over their rows, in percentages of the screen so they scale with it
-buttons.forEach((b, i) => {
-  Object.assign(b.style, {
-    left: `${(MENU.x / LW) * 100}%`,
-    top: `${(rowY(i) / 300) * 100}%`,
-    width: `${(MENU.w / LW) * 100}%`,
-    height: `${(ROW_H / 300) * 100}%`,
+/** Picks the layout for the window; the buttons sit over their rows, in percentages of the screen. */
+function layOut() {
+  L = isPortrait() ? PORTRAIT : LANDSCAPE;
+  screen.setSize(LW, L.h);
+  buttons.forEach((b, i) => {
+    Object.assign(b.style, {
+      left: `${(L.menu.x / LW) * 100}%`,
+      top: `${((rowY(i) - 1) / L.h) * 100}%`,
+      width: `${(L.menu.w / LW) * 100}%`,
+      height: `${(L.rowH / L.h) * 100}%`,
+    });
   });
+}
+layOut();
+window.addEventListener('resize', layOut);
+
+buttons.forEach((b, i) => {
   b.addEventListener('pointerenter', () => select(i));
   b.addEventListener('focus', () => select(i));
   b.addEventListener('click', () => activate(i));
@@ -187,40 +216,47 @@ function drawDuel(t: number) {
 }
 
 function drawMenu() {
+  const menu = L.menu;
   ctx.fillStyle = C.red;
-  ctx.fillRect(MENU.x - 2, MENU.y - 2, MENU.w + 4, MENU.h + 4);
+  ctx.fillRect(menu.x - 2, menu.y - 2, menu.w + 4, menu.h + 4);
   ctx.fillStyle = C.black;
-  ctx.fillRect(MENU.x, MENU.y, MENU.w, MENU.h);
+  ctx.fillRect(menu.x, menu.y, menu.w, menu.h);
   items().forEach((label, i) => {
-    const y = rowY(i);
     if (i === selected) {
       ctx.fillStyle = C.red;
-      ctx.fillRect(MENU.x + 4, y - 1, MENU.w - 8, ROW_H);
+      ctx.fillRect(menu.x + 4, rowY(i) - 1, menu.w - 8, L.rowH);
     }
+    // the text sits in the middle of its row
+    const y = rowY(i) + Math.floor((L.rowH - 15) / 2);
     const colour = i === selected ? C.brightWhite : C.white;
-    drawText(ctx, String(i + 1), MENU.x + 14, y, i === selected ? C.brightYellow : C.brightCyan, {
+    drawText(ctx, String(i + 1), menu.x + 14, y, i === selected ? C.brightYellow : C.brightCyan, {
       scale: 2,
     });
-    drawText(ctx, label, MENU.x + 44, y, colour, { scale: 2 });
+    drawText(ctx, label, menu.x + 44, y, colour, { scale: 2 });
   });
 }
 
 function drawCredits() {
+  const y = L.creditsY;
   ctx.fillStyle = C.blue;
-  ctx.fillRect(0, 258, LW, 42);
+  ctx.fillRect(0, y + 2, LW, L.h - y - 2);
   ctx.fillStyle = C.brightCyan;
-  ctx.fillRect(0, 258, LW, 1);
+  ctx.fillRect(0, y + 2, LW, 1);
   ctx.fillStyle = C.black;
-  ctx.fillRect(0, 256, LW, 2);
-  const line = (text: string, y: number, colour: string) =>
-    drawText(ctx, text, LW / 2, y, colour, { align: 'center' });
-  line('A REMAKE OF BATTLE SHIPS - HIT-PAK 1987', 264, C.brightWhite);
-  line('FOR THE ZX SPECTRUM', 275, C.brightCyan);
-  line(message || 'PRESS 1 OR 2 TO PLAY, M FOR SOUND', 287, message ? C.brightYellow : C.white);
+  ctx.fillRect(0, y, LW, 2);
+  const line = (text: string, dy: number, colour: string) =>
+    drawText(ctx, text, LW / 2, y + dy, colour, { align: 'center' });
+  line('A REMAKE OF BATTLE SHIPS - HIT-PAK 1987', 8, C.brightWhite);
+  line('FOR THE ZX SPECTRUM', 19, C.brightCyan);
+  line(
+    message || (touch ? 'TAP 1 OR 2 TO PLAY' : 'PRESS 1 OR 2 TO PLAY, M FOR SOUND'),
+    31,
+    message ? C.brightYellow : C.white,
+  );
 }
 
 function frame(t: number) {
-  drawScene(ctx, t);
+  drawScene(ctx, t, L.h);
   if (logo.complete && logo.naturalWidth) {
     ctx.drawImage(logo, Math.round((LW - logo.naturalWidth) / 2), 30);
   }
