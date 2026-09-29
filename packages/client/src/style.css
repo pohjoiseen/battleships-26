@@ -54,8 +54,31 @@ body.game {
   font-size: 10px;
 }
 
-#invite[hidden] {
+#invite[hidden],
+#name-entry[hidden] {
   display: none;
+}
+
+#name-entry {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px;
+  background: var(--cyan);
+  color: var(--black);
+  border: 3px solid #fff;
+  font-size: 10px;
+}
+
+#name-entry input {
+  font: inherit;
+  width: 14ch;
+  padding: 4px;
+  border: 2px solid var(--black);
+  text-transform: uppercase;
 }
 
 #invite input {

@@ -1,14 +1,4 @@
-import {
-  createRng,
-  FLEET,
-  other,
-  type PlayerIndex,
-  type PlayerView,
-  SEA_HIT,
-  SEA_UNKNOWN,
-  SHIP_NAMES,
-  shipSize,
-} from '@bs/shared';
+import { createRng, FLEET, type PlayerIndex, SHIP_NAMES, shipSize } from '@bs/shared';
 import { drawText, textWidth } from '../gfx/font.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { LH, LW } from '../gfx/screen.ts';
@@ -223,58 +213,4 @@ function drawWake(ctx: CanvasRenderingContext2D, x: number, w: number, t: number
   }
   ctx.fillStyle = C.white;
   for (let wx = x; wx < x + w; wx += 3) ctx.fillRect(wx, WATERLINE + 1, 1, 1);
-}
-
-export interface Report {
-  shots: [number, number];
-  hits: [number, number];
-  afloat: [number, number];
-}
-
-/** Each player's shooting and what's left of their fleet, from the final view. */
-export function report(v: PlayerView): Report {
-  const at = (p: PlayerIndex) => v.seas[other(p)].shots;
-  const players = [0, 1] as const;
-  return {
-    shots: players.map((p) => at(p).filter((s) => s !== SEA_UNKNOWN).length) as [number, number],
-    hits: players.map((p) => at(p).filter((s) => s === SEA_HIT).length) as [number, number],
-    afloat: players.map(
-      (p) => FLEET.filter((s) => v.seas[p].damage[s.id]! < shipSize(s.id)).length,
-    ) as [number, number],
-  };
-}
-
-/** The battle report over the sunset, where the hi-score table will go. */
-export function drawReport(ctx: CanvasRenderingContext2D, v: PlayerView, elapsed: number) {
-  drawScene(ctx, elapsed + 1e6);
-  const winner = v.winner!;
-  const r = report(v);
-  const box = { x: 60, y: 40, w: 280, h: 150 };
-  ctx.fillStyle = C.brightWhite;
-  ctx.fillRect(box.x - 2, box.y - 2, box.w + 4, box.h + 4);
-  ctx.fillStyle = C.black;
-  ctx.fillRect(box.x, box.y, box.w, box.h);
-  drawText(ctx, 'BATTLE REPORT', LW / 2, box.y + 10, C.brightCyan, { align: 'center', scale: 2 });
-  const c1 = box.x + 186;
-  const c2 = box.x + 246;
-  drawText(ctx, 'P1', c1, box.y + 40, playerColour(0), { align: 'center', bold: true });
-  drawText(ctx, 'P2', c2, box.y + 40, playerColour(1), { align: 'center', bold: true });
-  const pct = (h: number, s: number) => (s === 0 ? '-' : `${Math.round((100 * h) / s)}%`);
-  const rows: [string, string, string][] = [
-    ['SHOTS FIRED', String(r.shots[0]), String(r.shots[1])],
-    ['HITS', String(r.hits[0]), String(r.hits[1])],
-    ['ACCURACY', pct(r.hits[0], r.shots[0]), pct(r.hits[1], r.shots[1])],
-    ['SHIPS AFLOAT', String(r.afloat[0]), String(r.afloat[1])],
-  ];
-  rows.forEach(([label, a, b], k) => {
-    const y = box.y + 56 + k * 14;
-    drawText(ctx, label, box.x + 16, y, C.white);
-    drawText(ctx, a, c1, y, C.white, { align: 'center' });
-    drawText(ctx, b, c2, y, C.white, { align: 'center' });
-  });
-  const verdict = winner === v.you ? 'VICTORY!' : `PLAYER ${winner + 1} WINS`;
-  drawText(ctx, verdict, LW / 2, box.y + box.h - 20, playerColour(winner), {
-    align: 'center',
-    scale: 2,
-  });
 }

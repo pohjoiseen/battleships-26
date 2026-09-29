@@ -1,4 +1,4 @@
-import type { PlayerView } from '@bs/shared';
+import { cleanName, type PlayerView } from '@bs/shared';
 import { Screen } from '../gfx/screen.ts';
 import { sound } from '../gfx/sound.ts';
 import { App } from './app.ts';
@@ -9,6 +9,8 @@ const invite = document.querySelector<HTMLElement>('#invite')!;
 const inviteLink = document.querySelector<HTMLInputElement>('#invite-link')!;
 const copyButton = document.querySelector<HTMLButtonElement>('#invite-copy')!;
 const shareButton = document.querySelector<HTMLButtonElement>('#invite-share')!;
+const nameEntry = document.querySelector<HTMLFormElement>('#name-entry')!;
+const nameInput = document.querySelector<HTMLInputElement>('#name')!;
 
 const token = location.pathname.split('/').filter(Boolean)[1] ?? '';
 const screen = new Screen(canvas);
@@ -19,15 +21,49 @@ function showInvite(view: PlayerView) {
   if (view.inviteUrl) inviteLink.value = new URL(view.inviteUrl, location.origin).href;
   if (hidden === invite.hidden) return;
   invite.hidden = hidden;
-  fitAroundInvite();
+  fitAroundBoxes();
 }
 
-/** Shrinks the game to leave room for the invite under it. */
-function fitAroundInvite() {
-  screen.reserve = invite.hidden ? 0 : invite.offsetHeight + 16;
+/** Shrinks the game to leave room for the boxes under it (the invite, the name entry). */
+function fitAroundBoxes() {
+  screen.reserve = [invite, nameEntry].reduce(
+    (h, box) => h + (box.hidden ? 0 : box.offsetHeight + 16),
+    0,
+  );
   screen.resize();
 }
-window.addEventListener('resize', fitAroundInvite);
+window.addEventListener('resize', fitAroundBoxes);
+
+// the name for the hi-scores, remembered for next time
+const NAME_KEY = 'bs-name';
+try {
+  nameInput.value = localStorage.getItem(NAME_KEY) ?? '';
+} catch {
+  // storage may be off; then the name just isn't remembered
+}
+nameEntry.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const name = cleanName(nameInput.value);
+  if (!name) {
+    nameInput.focus();
+    return;
+  }
+  nameInput.value = name;
+  try {
+    localStorage.setItem(NAME_KEY, name);
+  } catch {
+    // as above
+  }
+  nameInput.blur();
+  app.sendName(name);
+});
+/** Shows the name entry while the report wants a name. */
+function syncNameEntry() {
+  const hidden = !app.wantsName();
+  if (hidden === nameEntry.hidden) return;
+  nameEntry.hidden = hidden;
+  fitAroundBoxes();
+}
 
 // phones can hand the link straight to a messenger
 shareButton.hidden = !navigator.share;
@@ -93,6 +129,7 @@ window.addEventListener('keydown', (e) => {
 
 const loop = (t: number) => {
   app.frame(t);
+  syncNameEntry();
   requestAnimationFrame(loop);
 };
 requestAnimationFrame(loop);

@@ -38,7 +38,8 @@ import {
   type ShipMarks,
 } from './draw.ts';
 import { cellAt, cellCentre, type Geometry, geometry, slotAt } from './geometry.ts';
-import { drawReport, drawSailPast, sailPastDuration, sailPastSounds } from './sailpast.ts';
+import { drawReport, reportLayout } from './report.ts';
+import { drawSailPast, sailPastDuration, sailPastSounds } from './sailpast.ts';
 import { drawSalvo, salvoSounds, timeline } from './salvo.ts';
 
 type ScreenName =
@@ -263,9 +264,9 @@ export class App {
           });
           break;
         case 'report':
-          drawReport(ctx, v, now - this.stageStart);
+          drawReport(ctx, v, now - this.stageStart, this.portrait);
           this.buttons = [
-            { id: 'new', label: 'NEW GAME', x: LW / 2 - 60, y: 210, w: 120, h: 16, enabled: true },
+            { id: 'new', label: 'NEW GAME', ...reportLayout(this.portrait).button, enabled: true },
           ];
           break;
         default:
@@ -300,6 +301,8 @@ export class App {
         return geometry(false, this.portrait);
       case 'salvo':
         return cockpitLayout(this.portrait);
+      case 'report':
+        return reportLayout(this.portrait);
       default:
         return { w: LW, h: LH };
     }
@@ -826,6 +829,21 @@ export class App {
     const wait = CURSOR_SEND_MS - (performance.now() - this.cursorSentAt);
     if (wait <= 0) flush();
     else if (!this.cursorTimer) this.cursorTimer = setTimeout(flush, wait);
+  }
+
+  /**
+   * Whether to ask for a name for the hi-scores: on the report, while the score still has the
+   * name it was given, PLAYER n.
+   */
+  wantsName(): boolean {
+    const v = this.view;
+    const yours = v?.hiscores?.yours;
+    return this.screenName() === 'report' && !!yours && yours.name === `PLAYER ${v!.you + 1}`;
+  }
+
+  /** Names our score. */
+  sendName(name: string): void {
+    this.send({ t: 'name', name });
   }
 
   // ---- test hooks ----

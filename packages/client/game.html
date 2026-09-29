@@ -15,6 +15,18 @@
       <button id="invite-copy" type="button">COPY</button>
       <button id="invite-share" type="button" hidden>SHARE</button>
     </div>
+    <form id="name-entry" hidden>
+      <label for="name">YOUR NAME FOR THE HI-SCORES:</label>
+      <input
+        id="name"
+        maxlength="12"
+        autocomplete="nickname"
+        autocapitalize="characters"
+        spellcheck="false"
+        enterkeyhint="done"
+      />
+      <button type="submit">OK</button>
+    </form>
     <script type="module" src="/src/game/main.ts"></script>
   </body>
 </html>

@@ -34,6 +34,14 @@ test('a whole game against the computer', async ({ page }) => {
   await waitForScreen(page, 'sailpast');
   await page.mouse.click(600, 450);
   await waitForScreen(page, 'report');
+  // the score goes in the table as PLAYER 1 until it's given a name
+  expect((await view(page)).hiscores!.yours).toMatchObject({ name: 'PLAYER 1' });
+  await page.getByLabel('YOUR NAME FOR THE HI-SCORES:').fill('e2e tester');
+  await page.getByRole('button', { name: 'OK' }).click();
+  await page.waitForFunction(() => window.__bs!.view()!.hiscores?.yours?.name === 'E2E TESTER');
+  await expect(page.locator('#name-entry')).toBeHidden();
+  const table = (await view(page)).hiscores!.entries;
+  expect(table.find((e) => e.you)?.name).toBe('E2E TESTER');
   await clickButton(page, 'new');
   await page.waitForURL(/\/$/);
   expect(errors).toEqual([]);
