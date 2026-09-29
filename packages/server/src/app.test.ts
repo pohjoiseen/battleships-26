@@ -1,8 +1,12 @@
+import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { isValidLayout, type PlayerView, type ServerMessage } from '@bs/shared';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { buildApp } from './app.ts';
+import { sqliteStore } from './store.ts';
 
 type App = Awaited<ReturnType<typeof buildApp>>['app'];
 let app: App | undefined;
@@ -203,5 +207,108 @@ describe('server', () => {
     expect(sessions.roomCount).toBe(1);
     sessions.sweep(Date.now() + 2000);
     expect(sessions.roomCount).toBe(0);
+  });
+});
+
+describe('restarting the server', () => {
+  let dir: string;
+  let db: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'bs-test-'));
+    db = join(dir, 'games.db');
+  });
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  /** Stops the running server and starts another on the same database. */
+  async function restart(opts: Partial<Parameters<typeof buildApp>[0]> = {}) {
+    await app?.close();
+    return start({ store: sqliteStore(db), ...opts });
+  }
+
+  /** Creates a 2-player game with both players joined; returns their tokens. */
+  async function twoPlayers(base: string, ws: string) {
+    const token1 = await createGame(base, '2p');
+    const p1 = client(`${ws}/ws?token=${token1}`);
+    const inviteUrl = (await p1.view()).inviteUrl!;
+    p1.socket.close();
+    const res = await fetch(`${base}${inviteUrl}`, { redirect: 'manual' });
+    return { token1, token2: res.headers.get('location')!.replace('/g/', ''), inviteUrl };
+  }
+
+  it('carries on a 2-player game where it was, shots placed and all', async () => {
+    let { base, ws } = await restart();
+    const { token1, token2, inviteUrl } = await twoPlayers(base, ws);
+    const p1 = client(`${ws}/ws?token=${token1}`);
+    const p2 = client(`${ws}/ws?token=${token2}`);
+    p1.send({ t: 'ready', layout: (await p1.view()).yourLayout });
+    p2.send({ t: 'ready', layout: (await p2.view()).yourLayout });
+    const aiming = await p1.view((v) => v.phase === 'aiming');
+    const shooter = aiming.turn === 0 ? p1 : p2;
+    for (const cell of [5, 6, 7]) shooter.send({ t: 'toggleShot', cell });
+    await p1.view((v) => v.pendingShots.length === 3);
+
+    ({ base, ws } = await restart());
+    const q1 = client(`${ws}/ws?token=${token1}`);
+    const q2 = client(`${ws}/ws?token=${token2}`);
+    const back = await q1.view((v) => v.opponent.connected);
+    expect(back).toMatchObject({ phase: 'aiming', turn: aiming.turn, pendingShots: [5, 6, 7] });
+    expect(back.yourLayout).toEqual(aiming.yourLayout);
+    expect(back.opponent.joined).toBe(true);
+    expect((await fetch(`${base}${inviteUrl}`, { redirect: 'manual' })).status).toBe(410);
+
+    const shooterNow = aiming.turn === 0 ? q1 : q2;
+    for (let cell = 8; cell < 8 + aiming.shotsAllowed - 3; cell++) {
+      shooterNow.send({ t: 'toggleShot', cell });
+    }
+    const next = await q2.view((v) => v.phase === 'aiming' && v.turnNumber === 2);
+    expect(next.lastSalvo!.shots).toHaveLength(aiming.shotsAllowed);
+    for (const c of [p1, p2, q1, q2]) c.socket.close();
+  });
+
+  it('keeps an unused invite working', async () => {
+    const first = await restart();
+    const token1 = await createGame(first.base, '2p');
+    const { base, ws } = await restart();
+    const p1 = client(`${ws}/ws?token=${token1}`);
+    const { inviteUrl } = await p1.view();
+    expect((await fetch(`${base}${inviteUrl}`, { redirect: 'manual' })).status).toBe(302);
+    await p1.view((v) => v.opponent.joined);
+    p1.socket.close();
+  });
+
+  it('has the computer take its turn again when it was interrupted', async () => {
+    const first = await restart({ timeScale: 0.05 });
+    const token = await createGame(first.base, '1p', true, 'original');
+    const a = client(`${first.ws}/ws?token=${token}`);
+    a.send({ t: 'ready', layout: (await a.view()).yourLayout });
+    const aiming = await a.view((v) => v.phase === 'aiming');
+    if (aiming.turn === 0) {
+      for (let cell = 0; cell < aiming.shotsAllowed; cell++) a.send({ t: 'toggleShot', cell });
+    }
+    // restart as soon as it is the computer's turn, before it has fired
+    await a.view((v) => v.phase === 'aiming' && v.turn === 1);
+    const { ws } = await restart({ timeScale: 0.05 });
+    const b = client(`${ws}/ws?token=${token}`);
+    const fired = await b.view((v) => v.phase === 'resolving' && v.lastSalvo?.shooter === 1);
+    expect(fired.lastSalvo!.shots).toHaveLength(24);
+    a.socket.close();
+    b.socket.close();
+  });
+
+  it('forgets swept rooms, and drops saved rooms it cannot read', async () => {
+    const { base, sessions } = await restart();
+    await createGame(base, '1p');
+    expect(sessions.roomCount).toBe(1);
+    sessions.sweep(Date.now() + 2000);
+    const store = sqliteStore(db);
+    store.put('junk', '{"v":0}');
+    store.close();
+    const again = await restart();
+    expect(again.sessions.roomCount).toBe(0);
+    await app!.close();
+    const left = sqliteStore(db);
+    expect(left.all()).toEqual([]);
+    left.close();
+    app = undefined;
   });
 });

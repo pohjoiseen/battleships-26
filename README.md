@@ -17,7 +17,9 @@ npm start            # production: the server serves the built client on :3000
 Server environment variables: `PORT` (3000), `HOST` (127.0.0.1), `BS_TIME_SCALE` (1; scales the
 salvo animation and AI pacing, the tests use 0.05), `BS_SEED` (makes games reproducible),
 `BS_AIS` (the computer players offered, from `original,simple,strong`; all by default. ACE,
-`strong`, takes about 0.1-0.5 s of CPU per turn, so a small server may want `original,simple`).
+`strong`, takes about 0.1-0.5 s of CPU per turn, so a small server may want `original,simple`),
+`BS_DB` (the SQLite file games are saved in, so they survive a restart; `data/battleships.db` by
+default, `:memory:` to keep nothing). Games nobody has touched for a day are dropped.
 
 ## Checks
 

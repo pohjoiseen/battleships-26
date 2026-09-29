@@ -7,3 +7,4 @@ zx-screenshots/
 scripts/original-ai/.cache/
 scripts/original-ai/.venv/
 __pycache__/
+data/

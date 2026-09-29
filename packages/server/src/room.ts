@@ -35,6 +35,21 @@ export interface RoomOptions {
   inviteUrl?: string;
   /** Seeds cosmetic things both players should see alike, such as the charts' coastlines. */
   chartSeed?: number;
+  /** A room saved before a restart (see Room.data), to carry on with instead of a new game. */
+  saved?: RoomData;
+  /** Called after anything worth saving has changed. */
+  onChange?: () => void;
+}
+
+/** What changes as a room plays, as JSON; with its options, enough to rebuild it. */
+export interface RoomData {
+  state: GameState;
+  /** The rng's state (Rng.state). */
+  rng: number;
+  /** The AI's memory (AiPlayer.save), if it has any. */
+  ai: unknown;
+  player2Joined: boolean;
+  lastActivity: number;
 }
 
 /** One game: owns the state, applies player actions, and keeps every connection up to date. */
@@ -49,12 +64,29 @@ export class Room {
   lastActivity = Date.now();
 
   constructor(private readonly opts: RoomOptions) {
+    if (opts.saved) {
+      this.state = opts.saved.state;
+      this.player2Joined = opts.saved.player2Joined;
+      this.lastActivity = opts.saved.lastActivity;
+      this.resume();
+      return;
+    }
     this.state = createGame(opts.settings, opts.rng);
     this.player2Joined = opts.ai !== null;
     if (opts.ai) {
       const result = this.apply({ type: 'ready', player: 1, layout: opts.ai.placeFleet(opts.rng) });
       if (!result.ok) throw new Error(`AI placed an invalid fleet: ${result.error}`);
     }
+  }
+
+  data(): RoomData {
+    return {
+      state: this.state,
+      rng: this.opts.rng.state(),
+      ai: this.opts.ai?.save?.() ?? null,
+      player2Joined: this.player2Joined,
+      lastActivity: this.lastActivity,
+    };
   }
 
   get connectionCount(): number {
@@ -74,6 +106,7 @@ export class Room {
 
   markPlayer2Joined(): void {
     this.player2Joined = true;
+    this.opts.onChange?.();
     this.broadcast();
   }
 
@@ -107,6 +140,7 @@ export class Room {
   private apply(action: Action) {
     const result = applyAction(this.state, action, this.opts.rng);
     if (!result.ok) return result;
+    this.opts.onChange?.();
     // Drafts only matter to the player moving ships around, who already has them locally.
     if (action.type !== 'draft') this.broadcast();
     if (action.type === 'fire') {
@@ -123,15 +157,41 @@ export class Room {
       s.phase === 'aiming' &&
       s.pendingShots.length === shotsAllowed(s, s.turn)
     ) {
-      const shooter = s.turn;
-      this.firing = true;
-      this.later(FIRING_MS * this.opts.timeScale, () => {
-        this.firing = false;
-        this.apply({ type: 'fire', player: shooter });
-      });
+      this.fireAfterFlash();
     }
     this.driveAi();
     return result;
+  }
+
+  /** The shots flash on the chart for a moment, then the salvo goes. */
+  private fireAfterFlash(): void {
+    const shooter = this.state.turn;
+    this.firing = true;
+    this.later(FIRING_MS * this.opts.timeScale, () => {
+      this.firing = false;
+      this.apply({ type: 'fire', player: shooter });
+    });
+  }
+
+  /**
+   * Picks a restored game up where it was: whatever was waiting on a timer is started again,
+   * and an AI caught halfway through placing its shots starts its turn over.
+   */
+  private resume(): void {
+    const s = this.state;
+    if (s.phase === 'resolving') {
+      const duration = salvoDurationMs(s.lastSalvo!, this.opts.timeScale);
+      this.later(duration + RESULTS_MS * this.opts.timeScale, () =>
+        this.apply({ type: 'advance' }),
+      );
+    } else if (s.phase === 'aiming') {
+      if (this.opts.ai && s.turn === 1) {
+        s.pendingShots = [];
+        this.driveAi();
+      } else if (s.pendingShots.length === shotsAllowed(s, s.turn)) {
+        this.fireAfterFlash();
+      }
+    }
   }
 
   /** Plays the AI's turn at a human-watchable pace: think, then place shots one by one, fire. */

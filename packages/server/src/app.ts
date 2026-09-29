@@ -89,7 +89,10 @@ export async function buildApp(opts: AppOptions) {
   }
 
   const sweeper = setInterval(() => sessions.sweep(), 10 * 60 * 1000);
-  app.addHook('onClose', async () => clearInterval(sweeper));
+  app.addHook('onClose', async () => {
+    clearInterval(sweeper);
+    sessions.close();
+  });
 
   return { app, sessions };
 }

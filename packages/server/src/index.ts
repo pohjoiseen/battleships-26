@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { AI_KINDS, type AiKind } from '@bs/shared';
 import { buildApp } from './app.ts';
+import { sqliteStore } from './store.ts';
 
 const env = process.env;
 
@@ -15,15 +16,24 @@ function parseAis(value: string | undefined): AiKind[] | undefined {
   return ais as AiKind[];
 }
 const ais = parseAis(env.BS_AIS);
+
+/** BS_DB: the SQLite file games are kept in across restarts; ":memory:" keeps nothing. */
+const dbPath = env.BS_DB ?? fileURLToPath(new URL('../../../data/battleships.db', import.meta.url));
+
 const { app } = await buildApp({
   timeScale: Number(env.BS_TIME_SCALE ?? 1),
   ...(env.BS_SEED ? { seed: Number(env.BS_SEED) } : {}),
   idleMs: 24 * 60 * 60 * 1000,
+  store: sqliteStore(dbPath),
   clientDir: fileURLToPath(new URL('../../client/dist', import.meta.url)),
   logger: env.NODE_ENV === 'production',
   ...(ais ? { ais } : {}),
 });
 
 const port = Number(env.PORT ?? 3000);
+// finish cleanly on Ctrl-C or a service stop, so the database is closed properly
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(signal, () => void app.close().then(() => process.exit(0)));
+}
 await app.listen({ port, host: env.HOST ?? '127.0.0.1' });
 console.log(`Battleships server on http://localhost:${port}`);
