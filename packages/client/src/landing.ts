@@ -23,16 +23,19 @@ const logo = new Image();
 logo.src = '/logo.svg';
 
 let salvo = true;
+/** The computer player: the original's, ported from the Z80 code, or our own. */
+let ai: 'original' | 'simple' = 'original';
 let selected = 0;
 let message = '';
 
-const MENU = { x: 64, y: 178, w: 272, h: 72 };
-const ROW_H = 16;
+const MENU = { x: 64, y: 172, w: 272, h: 80 };
+const ROW_H = 15;
 const rowY = (i: number) => MENU.y + 5 + i * ROW_H;
 
 const items = () => [
   '1 PLAYER',
   '2 PLAYERS',
+  `COMPUTER   - ${ai === 'original' ? '1987' : '2026'}`,
   `SALVO FIRE - ${salvo ? 'ON' : 'OFF'}`,
   `SOUND      - ${sound.muted ? 'OFF' : 'ON'}`,
 ];
@@ -60,17 +63,17 @@ function activate(i: number) {
   select(i);
   if (i === 0) void start('1p');
   else if (i === 1) void start('2p');
-  else if (i === 2) salvo = !salvo;
+  else if (i === 2) ai = ai === 'original' ? 'simple' : 'original';
+  else if (i === 3) salvo = !salvo;
   else sound.toggleMute();
   syncButtons();
 }
 
 /** Keeps the toggles' labels and pressed states in step with the drawn menu. */
 function syncButtons() {
-  buttons[2]!.setAttribute('aria-pressed', String(salvo));
-  buttons[3]!.setAttribute('aria-pressed', String(!sound.muted));
-  buttons[2]!.textContent = items()[2]!.replace(/ +/g, ' ');
-  buttons[3]!.textContent = items()[3]!.replace(/ +/g, ' ');
+  buttons[3]!.setAttribute('aria-pressed', String(salvo));
+  buttons[4]!.setAttribute('aria-pressed', String(!sound.muted));
+  for (const i of [2, 3, 4]) buttons[i]!.textContent = items()[i]!.replace(/ +/g, ' ');
 }
 syncButtons();
 
@@ -81,7 +84,7 @@ async function start(mode: '1p' | '2p') {
     const res = await fetch('/api/games', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ mode, salvo }),
+      body: JSON.stringify({ mode, salvo, ai }),
     });
     if (!res.ok) throw new Error(String(res.status));
     const { url } = (await res.json()) as CreateGameResponse;
@@ -93,7 +96,7 @@ async function start(mode: '1p' | '2p') {
 }
 
 // Keys as on the original menu: the numbers pick an item; arrows move, Enter chooses (on the
-// focused button); S and M toggle salvo fire and sound.
+// focused button); C, S and M toggle the computer player, salvo fire and sound.
 window.addEventListener('keydown', (e) => {
   sound.unlock();
   const n = Number(e.key);
@@ -102,8 +105,9 @@ window.addEventListener('keydown', (e) => {
     const i = (selected + (e.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length;
     buttons[i]!.focus();
     select(i);
-  } else if (e.key === 's' || e.key === 'S') activate(2);
-  else if (e.key === 'm' || e.key === 'M') activate(3);
+  } else if (e.key === 'c' || e.key === 'C') activate(2);
+  else if (e.key === 's' || e.key === 'S') activate(3);
+  else if (e.key === 'm' || e.key === 'M') activate(4);
   else return;
   e.preventDefault();
 });

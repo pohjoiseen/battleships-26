@@ -34,7 +34,8 @@ npm run logo         # regenerate packages/client/public/logo.svg from scripts/m
   contains the opponent's ship positions; `protocol.ts` holds the WebSocket messages.
 - `packages/server`: Fastify + WebSocket. `sessions.ts` handles game creation, player tokens and
   single-use invite links; `room.ts` runs one game, paces the salvo animation and the AI.
-  `ai/simple.ts` is the probability-density AI.
+  `ai/simple.ts` is our probability-density AI; `ai/original/` is the original's, ported from
+  the Z80 code (see below).
 - `packages/client`: `index.html` is the menu; `game.html` is one canvas drawn at 400x300 and
   scaled up with crisp pixels. The graphics are placeholders until the art milestone.
 - `e2e`: Playwright specs. The game page exposes `window.__bs` so tests can find cells on the canvas.
@@ -55,5 +56,24 @@ Checked against the original (playthrough video in `zx-screenshots/`) where the 
 - The salvo animation shows which ship each hit struck, in shuffled order, so it doesn't reveal
   which cell hit which ship.
 - As in the original, your own ships aren't shown while the opponent is aiming at your sea.
+
+## The computer player
+
+The menu's COMPUTER option picks the opponent in one-player games: **1987**, the original's own AI,
+or **2026**, ours. The original's is ported instruction by instruction from the tape
+(`packages/server/src/ai/original/machine.ts`) and tested against the real Z80 code run in an
+emulator; `docs/original-ai.asm` is its annotated disassembly and `scripts/original-ai/` has the
+tools. It keeps all its habits:
+
+- It hunts in lines while much of the sea is untouched (the diagonal streaks of its first salvos),
+  then in 5x5 blocks, a short random walk in the block with the fewest shots.
+- It cheats: every 29 hunting shots it looks at your fleet and shoots an unhit ship cell, and it
+  always knows which of its hits belong to which ship. It finishes off the smallest damaged ship
+  first, and the carrier's last cell it simply looks up.
+- It also cheats against itself: the first shot of each line is always open sea.
+- Its bugs stay too, except one: once the 32 cells its random numbers can start a line from are
+  used up, the original hangs for good (about one game in 60, computer against computer).
+
+`npm run bench:ai` compares the AIs.
 
 Sound effects are synthesised beeper-style (`gfx/sound.ts`); **M** toggles them on and off.
