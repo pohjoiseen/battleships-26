@@ -54,14 +54,14 @@ canvas.addEventListener('pointerdown', (e) => {
   sound.unlock();
   canvas.setPointerCapture(e.pointerId);
   const p = at(e);
-  app.pointerDown(p.x, p.y, e.button);
+  app.pointerDown(p.x, p.y, e.button, e.pointerType !== 'mouse');
 });
 canvas.addEventListener('pointermove', (e) => {
   const p = at(e);
   app.pointerMove(p.x, p.y);
 });
 canvas.addEventListener('pointerup', () => app.pointerUp());
-canvas.addEventListener('pointercancel', () => app.pointerUp());
+canvas.addEventListener('pointercancel', () => app.pointerUp(true));
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener(
   'wheel',

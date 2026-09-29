@@ -59,6 +59,18 @@ const OVER_MESSAGE_MS = 4000;
 const WINNERS_MS = 7000;
 const CURSOR_SEND_MS = 50;
 
+/** The loupe shows this many cells across, this many times bigger, this far from the finger. */
+const LOUPE_CELLS = 5;
+const LOUPE_ZOOM = 2;
+const LOUPE_GAP = 22;
+
+let loupeScratch: HTMLCanvasElement | null = null;
+function loupeCanvas(size: number): HTMLCanvasElement {
+  if (!loupeScratch) loupeScratch = document.createElement('canvas');
+  loupeScratch.width = loupeScratch.height = size;
+  return loupeScratch;
+}
+
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 'S'}`;
 
 /**
@@ -81,7 +93,8 @@ export class App {
   // placement
   private draft: Layout | null = null;
   private selected: number | null = 0;
-  private drag: { shipId: number; dx: number; dy: number } | null = null;
+  private drag: { shipId: number; dx: number; dy: number; moved: boolean; tap: boolean } | null =
+    null;
   private draftTimer: ReturnType<typeof setTimeout> | undefined;
 
   // aiming
@@ -94,6 +107,13 @@ export class App {
   /** When this turn's last shot went down, and the shots began flashing before the salvo. */
   private firing = { turn: 0, since: 0 };
   private cursorTimer: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * A finger aiming: where it is, and whether it is on the sea. The cell under it shows
+   * magnified beside it, and the shot goes down when it lifts.
+   */
+  private loupe: { x: number; y: number; onSea: boolean } | null = null;
+  /** Whether the last input was a touch, for the hints. */
+  private touch = matchMedia('(pointer: coarse)').matches;
 
   // sequencing
   private bannerUntil = 0;
@@ -389,7 +409,9 @@ export class App {
           ? `${this.opponentName(v)} IS READY`
           : `${this.opponentName(v)} IS PLACING SHIPS`);
     } else {
-      hint = 'DRAG TO MOVE, R/RIGHT-CLICK TO ROTATE';
+      hint = this.touch
+        ? 'DRAG TO MOVE, TAP AGAIN TO ROTATE'
+        : 'DRAG TO MOVE, R/RIGHT-CLICK TO ROTATE';
     }
     drawHint(ctx, this.g, hint, problem && ready ? C.brightRed : C.white);
   }
@@ -453,12 +475,44 @@ export class App {
       );
     }
 
+    if (this.loupe && aiming) this.drawLoupe(ctx);
+
     if (this.now < this.bannerUntil) {
       drawMessageBox(ctx, this.g, [
         ['READY', C.black],
         [`PLAYER ${shooter + 1}`, C.black],
       ]);
     }
+  }
+
+  /**
+   * The cursor's cell and its neighbours, magnified above the finger (or beside it, near the
+   * top), so the finger doesn't hide where the shot will go.
+   */
+  private drawLoupe(ctx: CanvasRenderingContext2D) {
+    const f = this.loupe!;
+    if (!f.onSea || this.cursor === null) return;
+    const c = cellCentre(this.g, this.cursor);
+    const size = LOUPE_CELLS * this.g.cell * LOUPE_ZOOM;
+    const clamp = (v: number, max: number) => Math.round(Math.min(Math.max(v, 2), max - 2 - size));
+    let x = clamp(f.x - size / 2, this.g.w);
+    let y = f.y - LOUPE_GAP - size;
+    if (y < 2) {
+      x = clamp(f.x < this.g.w / 2 ? f.x + LOUPE_GAP : f.x - LOUPE_GAP - size, this.g.w);
+      y = clamp(f.y - size / 2, this.g.h);
+    }
+    const src = (LOUPE_CELLS * this.g.cell) / 2;
+    const scratch = loupeCanvas(size);
+    const sctx = scratch.getContext('2d')!;
+    sctx.imageSmoothingEnabled = false;
+    sctx.fillStyle = C.black;
+    sctx.fillRect(0, 0, size, size);
+    sctx.drawImage(this.screen.buffer, c.x - src, c.y - src, src * 2, src * 2, 0, 0, size, size);
+    ctx.fillStyle = C.black;
+    ctx.fillRect(x - 3, y - 3, size + 6, size + 6);
+    ctx.fillStyle = C.brightWhite;
+    ctx.fillRect(x - 2, y - 2, size + 4, size + 4);
+    ctx.drawImage(scratch, x, y);
   }
 
   /** The sea just shot at, with the salvo's hits and misses, as in the original. */
@@ -548,9 +602,10 @@ export class App {
 
   // ---- input ----
 
-  pointerDown(x: number, y: number, button: number): void {
+  pointerDown(x: number, y: number, button: number, touch = false): void {
     const v = this.view;
     if (!v) return;
+    this.touch = touch;
     const b = buttonAt(this.buttons, x, y);
     if (b) {
       if (b.enabled) this.press(b.id);
@@ -561,12 +616,14 @@ export class App {
       const cell = cellAt(this.g, x, y);
       const hit = cell ? this.shipAt(cellIndex(cell)) : null;
       if (hit !== null && cell) {
+        // on a touch screen, tapping the selected ship again turns it
+        const tap = touch && this.selected === hit;
         this.selected = hit;
         if (button === 2) {
           this.rotate(hit);
         } else {
           const p = this.draft![hit]!;
-          this.drag = { shipId: hit, dx: cell.x - p.x, dy: cell.y - p.y };
+          this.drag = { shipId: hit, dx: cell.x - p.x, dy: cell.y - p.y, moved: false, tap };
         }
         return;
       }
@@ -574,7 +631,10 @@ export class App {
       if (slot !== null) this.selected = slot;
     } else if (screen === 'aiming' && this.canAim()) {
       const cell = cellAt(this.g, x, y);
-      if (cell) {
+      if (touch) {
+        this.loupe = { x, y, onSea: !!cell };
+        if (cell) this.setCursor(cellIndex(cell));
+      } else if (cell) {
         this.setCursor(cellIndex(cell));
         this.toggleShot(cellIndex(cell));
       }
@@ -591,15 +651,27 @@ export class App {
       if (!cell) return;
       const p = this.draft[this.drag.shipId]!;
       const moved = clampPlacement({ ...p, x: cell.x - this.drag.dx, y: cell.y - this.drag.dy });
-      if (moved.x !== p.x || moved.y !== p.y) this.updateShip(moved);
+      if (moved.x !== p.x || moved.y !== p.y) {
+        this.drag.moved = true;
+        this.updateShip(moved);
+      }
     } else if (this.screenName() === 'aiming' && this.canAim()) {
       const cell = cellAt(this.g, x, y);
+      if (this.loupe) this.loupe = { x, y, onSea: !!cell };
       if (cell) this.setCursor(cellIndex(cell));
     }
   }
 
-  pointerUp(): void {
+  /** The pointer lifted, or the browser took it over (`cancelled`: then nothing happens). */
+  pointerUp(cancelled = false): void {
+    if (this.drag?.tap && !this.drag.moved && !cancelled) this.rotate(this.drag.shipId);
     this.drag = null;
+    // a finger aiming shoots where it lifts, unless it slid off the sea
+    const loupe = this.loupe;
+    this.loupe = null;
+    if (loupe?.onSea && !cancelled && this.canAim() && this.cursor !== null) {
+      this.toggleShot(this.cursor);
+    }
   }
 
   /** Right-click or mouse wheel: rotate the ship under the pointer, or the selected one. */
