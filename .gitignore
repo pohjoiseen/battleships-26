@@ -4,3 +4,5 @@ test-results/
 playwright-report/
 *.tsbuildinfo
 zx-screenshots/
+scripts/original-ai/.cache/
+scripts/original-ai/.venv/
