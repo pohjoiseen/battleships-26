@@ -258,7 +258,9 @@ export class App {
           break;
         case 'sailpast':
           drawSailPast(ctx, v.winner!, v.seas[v.winner!].damage, now - this.stageStart);
-          drawText(ctx, 'CLICK TO SKIP', LW / 2, LH - 10, C.grey, { align: 'center' });
+          drawText(ctx, this.touch ? 'TAP TO SKIP' : 'CLICK TO SKIP', LW / 2, LH - 10, C.grey, {
+            align: 'center',
+          });
           break;
         case 'report':
           drawReport(ctx, v, now - this.stageStart);
