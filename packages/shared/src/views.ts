@@ -7,6 +7,7 @@ import {
   shotsAllowed,
 } from './game.ts';
 import type { Layout } from './placement.ts';
+import type { Score } from './scoring.ts';
 import { salvoDurationMs } from './timing.ts';
 
 export interface SeaView {
@@ -23,6 +24,26 @@ export interface OpponentInfo {
   connected: boolean;
 }
 
+export interface HiscoreEntry {
+  name: string;
+  score: number;
+  /** When it was scored, ms since the epoch. */
+  date: number;
+  /** In a view: this is the viewer's score from this game. */
+  you?: boolean;
+}
+
+/** The top of one hi-score table (see hiscoreBoard). */
+export interface HiscoreTable {
+  board: string;
+  entries: HiscoreEntry[];
+}
+
+/** After a game: its table, and how the viewer did (null for a viewer who isn't in it). */
+export interface GameHiscores extends HiscoreTable {
+  yours: (Score & { name: string; rank: number }) | null;
+}
+
 /** Extra context the server adds to each view. */
 export interface RoomInfo {
   opponent: OpponentInfo;
@@ -31,6 +52,8 @@ export interface RoomInfo {
   timeScale: number;
   /** Seeds the look of the charts (their ragged coastlines); the same for both players. */
   chartSeed: number;
+  /** Once the game is over. */
+  hiscores?: GameHiscores;
 }
 
 /** Everything one player is allowed to know. Never contains the opponent's ship positions. */
@@ -56,6 +79,8 @@ export interface PlayerView {
   inviteUrl?: string;
   /** Seeds the look of the charts (their ragged coastlines); the same for both players. */
   chartSeed: number;
+  /** The game's hi-score table, once it is over. */
+  hiscores?: GameHiscores;
 }
 
 export function playerView(state: GameState, you: PlayerIndex, room: RoomInfo): PlayerView {
@@ -83,5 +108,6 @@ export function playerView(state: GameState, you: PlayerIndex, room: RoomInfo): 
     opponent: room.opponent,
     chartSeed: room.chartSeed,
     ...(room.inviteUrl && you === 0 && !room.opponent.joined ? { inviteUrl: room.inviteUrl } : {}),
+    ...(over && room.hiscores ? { hiscores: room.hiscores } : {}),
   };
 }

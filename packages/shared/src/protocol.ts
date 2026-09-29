@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CELL_COUNT } from './geometry.ts';
-import type { PlayerView } from './views.ts';
+import type { HiscoreTable, PlayerView } from './views.ts';
 
 const cell = z
   .number()
@@ -21,6 +21,8 @@ export const clientMessage = z.discriminatedUnion('t', [
   z.object({ t: z.literal('toggleShot'), cell }),
   /** Where the shooter's cursor is, relayed live to the opponent. */
   z.object({ t: z.literal('cursor'), cell: cell.nullable() }),
+  /** The name for your score, once the game is over (see cleanName). */
+  z.object({ t: z.literal('name'), name: z.string().max(40) }),
 ]);
 
 export type ClientMessage = z.infer<typeof clientMessage>;
@@ -50,4 +52,9 @@ export type CreateGameRequest = z.infer<typeof createGameRequest>;
 
 export interface CreateGameResponse {
   url: string;
+}
+
+/** GET /api/hiscores: every table this server keeps, for the opponents it offers. */
+export interface HiscoresResponse {
+  tables: HiscoreTable[];
 }

@@ -9,6 +9,7 @@ import {
   clientMessage,
   createGameRequest,
   type CreateGameResponse,
+  type HiscoresResponse,
   type ServerMessage,
 } from '@bs/shared';
 import Fastify from 'fastify';
@@ -79,6 +80,11 @@ export async function buildApp(opts: AppOptions) {
   });
 
   app.get('/api/ais', async () => ({ ais: [...ais] }) satisfies AisResponse);
+
+  app.get(
+    '/api/hiscores',
+    async () => ({ tables: sessions.tables([...ais, 'human']) }) satisfies HiscoresResponse,
+  );
 
   app.get('/api/health', async () => ({ ok: true, rooms: sessions.roomCount }));
 

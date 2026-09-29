@@ -9,6 +9,7 @@ import {
   type ClientMessage,
   createGame,
   type GameSettings,
+  type GameHiscores,
   type GameState,
   other,
   type PlayerIndex,
@@ -39,6 +40,12 @@ export interface RoomOptions {
   saved?: RoomData;
   /** Called after anything worth saving has changed. */
   onChange?: () => void;
+  /** Called once when the game ends, before anyone is told. */
+  onOver?: () => void;
+  /** The hi-scores to show a player once the game is over. */
+  hiscores?: (player: PlayerIndex) => GameHiscores | undefined;
+  /** A player names their score. */
+  rename?: (player: PlayerIndex, name: string) => void;
 }
 
 /** What changes as a room plays, as JSON; with its options, enough to rebuild it. */
@@ -118,6 +125,13 @@ export class Room {
       }
       return;
     }
+    if (msg.t === 'name') {
+      if (this.state.phase === 'over') {
+        this.opts.rename?.(player, msg.name);
+        this.broadcast();
+      }
+      return;
+    }
     const action: Action =
       msg.t === 'toggleShot'
         ? { type: 'toggleShot', player, cell: msg.cell }
@@ -140,6 +154,7 @@ export class Room {
   private apply(action: Action) {
     const result = applyAction(this.state, action, this.opts.rng);
     if (!result.ok) return result;
+    if (action.type === 'advance' && this.state.phase === 'over') this.opts.onOver?.();
     this.opts.onChange?.();
     // Drafts only matter to the player moving ships around, who already has them locally.
     if (action.type !== 'draft') this.broadcast();
@@ -248,6 +263,7 @@ export class Room {
       inviteUrl: this.opts.inviteUrl,
       timeScale: this.opts.timeScale,
       chartSeed: this.opts.chartSeed ?? 0,
+      hiscores: this.state.phase === 'over' ? this.opts.hiscores?.(player) : undefined,
     });
   }
 

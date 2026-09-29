@@ -1,8 +1,20 @@
 import { randomBytes } from 'node:crypto';
-import { createRng, type GameSettings, type PlayerIndex, randomSeed } from '@bs/shared';
+import {
+  cleanName,
+  createRng,
+  type GameHiscores,
+  type GameSettings,
+  hiscoreBoard,
+  type HiscoreTable,
+  type Opponent,
+  type PlayerIndex,
+  playerScore,
+  randomSeed,
+  type ScoreDetails,
+} from '@bs/shared';
 import { AI_PLAYERS, type AiKind } from './ai/index.ts';
 import { Room, type RoomData } from './room.ts';
-import { memoryStore, type Store } from './store.ts';
+import { memoryStore, type ScoreRow, type Store } from './store.ts';
 
 export interface SessionOptions {
   timeScale: number;
@@ -31,7 +43,12 @@ interface Entry {
   seats: Record<string, PlayerIndex>;
   /** Player 2's invite while it hasn't been used. */
   invite: string | null;
+  /** Each human player's score from this game, once it's over. */
+  scoreIds: [number | null, number | null];
 }
+
+/** How many places a hi-score table shows. */
+export const TABLE_SIZE = 10;
 
 /** How an entry is stored; `v` changes when the format does, and older rooms are dropped. */
 interface SavedEntry extends Omit<Entry, 'room'> {
@@ -39,6 +56,8 @@ interface SavedEntry extends Omit<Entry, 'room'> {
   room: RoomData;
 }
 const FORMAT = 1;
+
+const boardOf = (entry: Entry) => hiscoreBoard(entry.ai ?? 'human', entry.settings.salvo);
 
 /** 128 bits of randomness, URL-safe. Knowing a token is what makes you that player. */
 const newToken = () => randomBytes(16).toString('base64url');
@@ -49,6 +68,8 @@ export class Sessions {
   private readonly entries = new Map<string, Entry>();
   private readonly store: Store;
   private created = 0;
+  /** After close; sockets still closing may stir their rooms, which then leave the store be. */
+  private closed = false;
 
   constructor(private readonly opts: SessionOptions) {
     this.store = opts.store ?? memoryStore();
@@ -77,6 +98,7 @@ export class Sessions {
       ...(invite ? { inviteUrl: `/join/${invite}` } : {}),
       seats: { [token]: 0 },
       invite,
+      scoreIds: [null, null],
     };
     this.add(entry, createRng(seed));
     return token;
@@ -121,9 +143,73 @@ export class Sessions {
     return this.entries.size;
   }
 
+  /** The top of each table, for these opponents, salvo fire on and off. */
+  tables(opponents: readonly Opponent[]): HiscoreTable[] {
+    return opponents.flatMap((opponent) =>
+      [true, false].map((salvo) => {
+        const board = hiscoreBoard(opponent, salvo);
+        return {
+          board,
+          entries: this.store.topScores(board, TABLE_SIZE).map(({ name, score, created }) => ({
+            name,
+            score,
+            date: created,
+          })),
+        };
+      }),
+    );
+  }
+
+  /** The game is over: every human player's score goes in the table, named after their seat. */
+  private scoreGame(entry: Entry): void {
+    if (this.closed) return;
+    const state = entry.room.state;
+    const board = boardOf(entry);
+    for (const player of entry.ai ? ([0] as const) : ([0, 1] as const)) {
+      const { score, ...details } = playerScore(state, player);
+      entry.scoreIds[player] = this.store.addScore({
+        board,
+        name: `PLAYER ${player + 1}`,
+        score,
+        details: JSON.stringify(details),
+      });
+    }
+  }
+
+  private hiscores(entry: Entry, player: PlayerIndex): GameHiscores | undefined {
+    if (this.closed) return undefined;
+    const board = boardOf(entry);
+    const id = entry.scoreIds[player];
+    const mine: ScoreRow | undefined = id === null ? undefined : this.store.score(id);
+    return {
+      board,
+      entries: this.store.topScores(board, TABLE_SIZE).map((r) => ({
+        name: r.name,
+        score: r.score,
+        date: r.created,
+        ...(r.id === id ? { you: true } : {}),
+      })),
+      yours: mine
+        ? {
+            ...(JSON.parse(mine.details) as ScoreDetails),
+            score: mine.score,
+            name: mine.name,
+            rank: this.store.rank(mine.id),
+          }
+        : null,
+    };
+  }
+
+  private rename(entry: Entry, player: PlayerIndex, raw: string): void {
+    const name = cleanName(raw);
+    const id = entry.scoreIds[player];
+    if (name && id !== null && !this.closed) this.store.renameScore(id, name);
+  }
+
   /** Stops every room's timers; the store keeps them for next time. */
   close(): void {
     for (const entry of this.entries.values()) entry.room.dispose();
+    this.closed = true;
     this.store.close();
   }
 
@@ -131,6 +217,7 @@ export class Sessions {
     if (saved.v !== FORMAT) throw new Error(`format ${saved.v}, expected ${FORMAT}`);
     const { room, ...entry } = saved;
     delete (entry as Partial<SavedEntry>).v;
+    entry.scoreIds ??= [null, null];
     this.add(entry, createRng(room.rng), room);
   }
 
@@ -146,6 +233,9 @@ export class Sessions {
       ...(fields.inviteUrl ? { inviteUrl: fields.inviteUrl } : {}),
       ...(saved ? { saved } : {}),
       onChange: () => this.save(entry),
+      onOver: () => this.scoreGame(entry),
+      hiscores: (player) => this.hiscores(entry, player),
+      rename: (player, name) => this.rename(entry, player, name),
     });
     this.entries.set(entry.id, entry);
     for (const [token, player] of Object.entries(entry.seats)) {
@@ -157,7 +247,7 @@ export class Sessions {
 
   private save(entry: Entry): void {
     // a new room saves itself while it is being built, before it's indexed
-    if (!entry.room) return;
+    if (!entry.room || this.closed) return;
     const { room, ...fields } = entry;
     const saved: SavedEntry = { v: FORMAT, ...fields, room: room.data() };
     this.store.put(entry.id, JSON.stringify(saved));

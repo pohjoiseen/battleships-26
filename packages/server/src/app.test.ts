@@ -2,7 +2,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { isValidLayout, type PlayerView, type ServerMessage } from '@bs/shared';
+import {
+  isValidLayout,
+  occupancy,
+  type HiscoresResponse,
+  type PlayerView,
+  type ServerMessage,
+} from '@bs/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
 import { buildApp } from './app.ts';
@@ -310,5 +316,100 @@ describe('restarting the server', () => {
     expect(left.all()).toEqual([]);
     left.close();
     app = undefined;
+  });
+});
+
+describe('hi-scores', () => {
+  /**
+   * A 2-player game where player 2 sinks player 1's fleet with one salvo (the test knows where
+   * player 1's ships are); if player 1 shoots first, they fire at the corner cells and miss.
+   */
+  async function playToTheEnd(base: string, ws: string) {
+    const token1 = await createGame(base, '2p');
+    const p1 = client(`${ws}/ws?token=${token1}`);
+    const { inviteUrl } = await p1.view();
+    const res = await fetch(`${base}${inviteUrl}`, { redirect: 'manual' });
+    const token2 = res.headers.get('location')!.replace('/g/', '');
+    const p2 = client(`${ws}/ws?token=${token2}`);
+    const fleet1 = (await p1.view()).yourLayout;
+    p1.send({ t: 'ready', layout: fleet1 });
+    p2.send({ t: 'ready', layout: (await p2.view()).yourLayout });
+    const first = await p1.view((v) => v.phase === 'aiming');
+    if (first.turn === 0) {
+      const own = occupancy((await p2.view()).yourLayout);
+      const misses = own.flatMap((ship, cell) => (ship < 0 ? [cell] : [])).slice(-24);
+      for (const cell of misses) p1.send({ t: 'toggleShot', cell });
+      await p2.view((v) => v.phase === 'aiming' && v.turn === 1);
+    }
+    const targets = occupancy(fleet1).flatMap((ship, cell) => (ship >= 0 ? [cell] : []));
+    const spare = occupancy(fleet1).findIndex((ship) => ship < 0);
+    for (const cell of [...targets, spare]) p2.send({ t: 'toggleShot', cell });
+    await p1.view((v) => v.phase === 'over' && !!v.hiscores);
+    return { p1, p2, token2 };
+  }
+
+  it('scores both players of a finished game and lets them name their scores', async () => {
+    const { base, ws } = await start();
+    const { p1, p2 } = await playToTheEnd(base, ws);
+    const won = await p2.view((v) => v.phase === 'over' && !!v.hiscores);
+    expect(won.hiscores!.board).toBe('human');
+    expect(won.hiscores!.yours).toMatchObject({ won: true, hits: 23, rank: 1, name: 'PLAYER 2' });
+    const lost = await p1.view((v) => v.phase === 'over' && !!v.hiscores);
+    expect(lost.hiscores!.yours).toMatchObject({ won: false, rank: 2, name: 'PLAYER 1' });
+    expect(lost.hiscores!.entries.map((e) => [e.name, !!e.you])).toEqual([
+      ['PLAYER 2', false],
+      ['PLAYER 1', true],
+    ]);
+
+    // a name that isn't one changes nothing; a good one shows up for both players
+    p2.send({ t: 'name', name: '<script>' });
+    p2.send({ t: 'name', name: ' captain  nemo ' });
+    const named = await p1.view((v) => v.hiscores?.entries[0]?.name === 'CAPTAIN NEMO');
+    expect(named.hiscores!.entries).toHaveLength(2);
+    expect(
+      p2.messages.filter((m) => m.t === 'view' && m.view.hiscores?.entries[0]?.name === '<SCRIPT>'),
+    ).toEqual([]);
+
+    const { tables } = (await (await fetch(`${base}/api/hiscores`)).json()) as HiscoresResponse;
+    expect(tables.map((t) => t.board)).toEqual([
+      'original',
+      'original-single',
+      'simple',
+      'simple-single',
+      'strong',
+      'strong-single',
+      'human',
+      'human-single',
+    ]);
+    const human = tables.find((t) => t.board === 'human')!;
+    expect(human.entries.map((e) => e.name)).toEqual(['CAPTAIN NEMO', 'PLAYER 1']);
+    expect(human.entries[0]).not.toHaveProperty('you');
+    p1.socket.close();
+    p2.socket.close();
+  });
+
+  it('keeps the tables, and your place in them, across a restart', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bs-test-'));
+    try {
+      const db = join(dir, 'games.db');
+      const { base, ws } = await start({ store: sqliteStore(db) });
+      const { p1, p2, token2 } = await playToTheEnd(base, ws);
+      p2.send({ t: 'name', name: 'nemo' });
+      await p1.view((v) => v.hiscores?.entries[0]?.name === 'NEMO');
+      p1.socket.close();
+      p2.socket.close();
+      await app!.close();
+      const again = await start({ store: sqliteStore(db) });
+      const back = client(`${again.ws}/ws?token=${token2}`);
+      const view = await back.view();
+      expect(view.hiscores!.yours).toMatchObject({ name: 'NEMO', rank: 1, won: true });
+      back.socket.close();
+      const { tables } = (await (
+        await fetch(`${again.base}/api/hiscores`)
+      ).json()) as HiscoresResponse;
+      expect(tables.find((t) => t.board === 'human')!.entries).toHaveLength(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
