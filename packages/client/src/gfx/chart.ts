@@ -1,8 +1,6 @@
 import { BOARD_SIZE, createRng } from '@bs/shared';
 import type { Geometry } from '../game/geometry.ts';
 import { C } from './palette.ts';
-import { LH, LW } from './screen.ts';
-import { SLOT_W } from './ships.ts';
 
 /**
  * The chart paper under the sea: cyan, with a ragged coastline edge fraying into dithered
@@ -10,9 +8,6 @@ import { SLOT_W } from './ships.ts';
  * sea) gets its own, the same on both players' screens.
  */
 
-/** Space kept clear for the title above the sea and the text below it. */
-const TOP_LIMIT = 21;
-const BOTTOM_LIMIT = 289;
 /** The furthest the coast reaches out from the paper the sea needs. */
 const MAX_REACH = 5;
 /** Dots of the fringe can go this far past the coast. */
@@ -21,7 +16,7 @@ const FRINGE = 4;
 const cache = new Map<string, HTMLCanvasElement>();
 
 export function drawChart(ctx: CanvasRenderingContext2D, g: Geometry, seed: number) {
-  const key = `${seed}/${g.seaX}`;
+  const key = `${seed}/${g.seaX}/${g.w}x${g.h}`;
   let img = cache.get(key);
   if (!img) cache.set(key, (img = renderChart(g, seed)));
   ctx.drawImage(img, 0, 0);
@@ -38,16 +33,12 @@ function renderChart(g: Geometry, seed: number): HTMLCanvasElement {
   const h = y1 - y0;
   const perimeter = 2 * (w + h);
 
-  // things the coast must stay clear of: the ship pictures and the buttons
-  const blocked = [
-    { x: g.panelX + 8, y: 0, w: SLOT_W + 4, h: g.seaY + seaW },
-    { x: g.panelX - 1, y: g.buttonsY - 2, w: g.panelW + 2, h: 20 },
-  ];
+  const blocked = g.keepClear;
   const free = (x: number, y: number) =>
     x >= 0 &&
-    x < LW &&
-    y >= TOP_LIMIT &&
-    y <= BOTTOM_LIMIT &&
+    x < g.w &&
+    y >= g.topLimit &&
+    y <= g.bottomLimit &&
     !blocked.some((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
 
   // the room there is outside each point of the perimeter (clockwise from the top-left corner),
@@ -93,14 +84,14 @@ function renderChart(g: Geometry, seed: number): HTMLCanvasElement {
   };
 
   const img = document.createElement('canvas');
-  img.width = LW;
-  img.height = LH;
+  img.width = g.w;
+  img.height = g.h;
   const ctx = img.getContext('2d')!;
   ctx.fillStyle = C.cyan;
   ctx.fillRect(x0, y0, w + 1, h + 1);
 
-  for (let y = 0; y < LH; y++) {
-    for (let x = 0; x < LW; x++) {
+  for (let y = 0; y < g.h; y++) {
+    for (let x = 0; x < g.w; x++) {
       const cx = Math.min(Math.max(x, x0), x1);
       const cy = Math.min(Math.max(y, y0), y1);
       if (cx === x && cy === y) continue; // on the paper

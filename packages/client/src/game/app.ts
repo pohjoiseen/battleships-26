@@ -22,7 +22,7 @@ import {
 import { drawText, textWidth } from '../gfx/font.ts';
 import { FIRE_BEEP_MS, sound, TYPE_UNIT_MS } from '../gfx/sound.ts';
 import { C, playerColour } from '../gfx/palette.ts';
-import { LH, LW, type Screen } from '../gfx/screen.ts';
+import { isPortrait, LH, LW, type Screen } from '../gfx/screen.ts';
 import {
   blink,
   type Button,
@@ -74,6 +74,8 @@ export class App {
 
   private now = 0;
   private g: Geometry = geometry(false);
+  /** Whether this frame is laid out for a portrait window. */
+  private portrait = false;
   private buttons: Button[] = [];
 
   // placement
@@ -191,15 +193,20 @@ export class App {
   frame(now: number): void {
     this.now = now;
     this.advanceOverStage();
+    this.portrait = isPortrait();
+    const size = this.sizeOf(this.screenName());
+    this.screen.setSize(size.w, size.h);
     const ctx = this.screen.ctx;
+    const W = size.w;
+    const H = size.h;
     ctx.fillStyle = C.black;
-    ctx.fillRect(0, 0, LW, LH);
+    ctx.fillRect(0, 0, W, H);
     this.buttons = [];
     const v = this.view;
 
     if (!v) {
       const text = this.fatalError ?? 'CONNECTING...';
-      drawText(ctx, text, LW / 2, LH / 2 - 4, this.fatalError ? C.brightRed : C.brightCyan, {
+      drawText(ctx, text, W / 2, H / 2 - 4, this.fatalError ? C.brightRed : C.brightCyan, {
         align: 'center',
       });
     } else {
@@ -246,16 +253,30 @@ export class App {
     if (this.now < this.toastUntil) {
       const w = textWidth(this.toast, {}) + 12;
       ctx.fillStyle = C.black;
-      ctx.fillRect(LW / 2 - w / 2, LH / 2 - 8, w, 16);
-      drawText(ctx, this.toast, LW / 2, LH / 2 - 4, C.brightWhite, { align: 'center' });
+      ctx.fillRect(W / 2 - w / 2, H / 2 - 8, w, 16);
+      drawText(ctx, this.toast, W / 2, H / 2 - 4, C.brightWhite, { align: 'center' });
     }
 
     if (v && !this.connected) {
-      drawText(ctx, this.fatalError ?? 'RECONNECTING...', LW - 4, LH - 10, C.brightRed, {
+      drawText(ctx, this.fatalError ?? 'RECONNECTING...', W - 4, H - 10, C.brightRed, {
         align: 'right',
       });
     }
     this.screen.present();
+  }
+
+  /** The logical screen size each screen is drawn at. */
+  private sizeOf(screen: ScreenName): { w: number; h: number } {
+    switch (screen) {
+      case 'placing':
+      case 'aiming':
+      case 'results':
+      case 'over-message':
+      case 'winners':
+        return geometry(false, this.portrait);
+      default:
+        return { w: LW, h: LH };
+    }
   }
 
   /**
@@ -318,7 +339,7 @@ export class App {
     const ready = v.ready[me];
     const layout = this.draft ?? v.yourLayout;
     const conflicts = ready ? new Set<number>() : conflictingShips(layout);
-    this.g = geometry(me === 1);
+    this.g = geometry(me === 1, this.portrait);
 
     const ships: ShipMarks[] = layout.map((p) => ({
       cells: placementIndices(p).filter((i) => i >= 0 && i < 400),
@@ -329,7 +350,7 @@ export class App {
             ? C.brightBlue
             : C.magenta,
     }));
-    drawTitle(ctx, [
+    drawTitle(ctx, this.g, [
       [`PLAYER ${me + 1}`, playerColour(me)],
       [ready ? ' IS READY' : ' POSITION YOUR SHIPS', C.brightCyan],
     ]);
@@ -379,7 +400,7 @@ export class App {
     const mine = shooter === v.you;
     const aiming = this.canAim();
     const placed = mine ? this.localPending : v.pendingShots;
-    this.g = geometry(defender === 1);
+    this.g = geometry(defender === 1, this.portrait);
 
     // the last shot fires the salvo: first the shots flash on the chart, with three beeps
     const firing = placed.length === v.shotsAllowed;
@@ -397,7 +418,7 @@ export class App {
       [name, playerColour(shooter)],
       [rest, C.brightCyan],
     ];
-    drawTitle(ctx, title, this.typeOut(`turn ${v.turnNumber}`, title, this.bannerUntil));
+    drawTitle(ctx, this.g, title, this.typeOut(`turn ${v.turnNumber}`, title, this.bannerUntil));
     drawSea(
       ctx,
       this.g,
@@ -443,7 +464,7 @@ export class App {
   /** The sea just shot at, with the salvo's hits and misses, as in the original. */
   private drawResults(ctx: CanvasRenderingContext2D, v: PlayerView) {
     const defender = other(v.lastSalvo!.shooter);
-    this.g = geometry(defender === 1);
+    this.g = geometry(defender === 1, this.portrait);
     const sea = v.seas[defender];
     drawSea(ctx, this.g, { owner: defender, chartSeed: v.chartSeed, shots: sea.shots }, this.now);
     drawPanel(ctx, this.g, { owner: defender, damage: sea.damage }, this.now);
@@ -453,7 +474,7 @@ export class App {
     const winner = v.winner!;
     const loser = other(winner);
     if (this.screenName() === 'over-message') {
-      this.g = geometry(loser === 1);
+      this.g = geometry(loser === 1, this.portrait);
       drawSea(
         ctx,
         this.g,
@@ -479,13 +500,13 @@ export class App {
       return;
     }
 
-    this.g = geometry(winner === 1);
+    this.g = geometry(winner === 1, this.portrait);
     const shots = v.seas[winner].shots;
     const ships: ShipMarks[] = (v.revealed?.[winner] ?? []).map((p) => ({
       cells: placementIndices(p).filter((i) => shots[i] !== SEA_HIT),
       colour: C.magenta,
     }));
-    drawTitle(ctx, [['THE WINNERS FLEET', C.brightCyan]]);
+    drawTitle(ctx, this.g, [['THE WINNERS FLEET', C.brightCyan]]);
     drawSea(ctx, this.g, { owner: winner, chartSeed: v.chartSeed, shots, ships }, this.now);
     drawPanel(ctx, this.g, { owner: winner, damage: v.seas[winner].damage }, this.now);
     this.buttons = buttonRow(this.g, [{ id: 'new', label: 'NEW GAME', enabled: true }]);

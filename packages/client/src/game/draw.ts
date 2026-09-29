@@ -10,7 +10,6 @@ import {
 import { drawChart } from '../gfx/chart.ts';
 import { drawDigits, drawText, textWidth } from '../gfx/font.ts';
 import { C, playerColour } from '../gfx/palette.ts';
-import { LW } from '../gfx/screen.ts';
 import { drawShipCentred, factionOf, type ShipLook } from '../gfx/ships.ts';
 import { cellOrigin, type Geometry, slotRect } from './geometry.ts';
 
@@ -138,8 +137,9 @@ export function buttonRow(
   items: { id: string; label: string; enabled: boolean }[],
 ): Button[] {
   const gap = 4;
-  const w = Math.floor((g.panelW - gap * (items.length - 1)) / items.length);
-  return items.map((it, k) => ({ ...it, x: g.panelX + k * (w + gap), y: g.buttonsY, w, h: 16 }));
+  const r = g.buttons;
+  const w = Math.floor((r.w - gap * (items.length - 1)) / items.length);
+  return items.map((it, k) => ({ ...it, x: r.x + k * (w + gap), y: r.y, w, h: r.h }));
 }
 
 export function drawButton(ctx: CanvasRenderingContext2D, b: Button) {
@@ -150,31 +150,51 @@ export function drawButton(ctx: CanvasRenderingContext2D, b: Button) {
   ctx.fillRect(b.x, b.y + b.h - 1, b.w, 1);
   ctx.fillRect(b.x, b.y, 1, b.h);
   ctx.fillRect(b.x + b.w - 1, b.y, 1, b.h);
-  drawText(ctx, b.label, b.x + b.w / 2, b.y + 4, b.enabled ? C.brightWhite : C.grey, {
-    align: 'center',
-  });
+  drawText(
+    ctx,
+    b.label,
+    b.x + b.w / 2,
+    b.y + Math.floor(b.h / 2) - 4,
+    b.enabled ? C.brightWhite : C.grey,
+    {
+      align: 'center',
+    },
+  );
 }
 
 export function buttonAt(buttons: readonly Button[], x: number, y: number): Button | null {
   return buttons.find((b) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h) ?? null;
 }
 
-/** Title in segments, e.g. [['PLAYER 1', red], [' FIRE 24 SHOTS AT NME', cyan]], centred. */
+/**
+ * Title in segments, e.g. [['PLAYER 1', red], [' FIRE 24 SHOTS AT NME', cyan]], centred. In
+ * portrait it is too wide for one line, so what follows the first segment goes on a second.
+ */
 export function drawTitle(
   ctx: CanvasRenderingContext2D,
+  g: Geometry,
   segments: [string, string][],
   /** Only this many characters, while it types out. */
   chars = Infinity,
 ) {
   const opts = { scale: 2 };
-  const full = segments.map((s) => s[0]).join('');
-  let x = Math.round((LW - textWidth(full, opts)) / 2);
+  const lines =
+    g.portrait && segments.length > 1 ? [segments.slice(0, 1), segments.slice(1)] : [segments];
   let left = chars;
-  for (const [text, colour] of segments) {
-    drawText(ctx, text.slice(0, Math.max(0, left)), x, 6, colour, opts);
-    x += textWidth(text, opts);
-    left -= text.length;
-  }
+  lines.forEach((line, k) => {
+    if (k > 0 && line[0]![0].startsWith(' ')) {
+      // the space between the lines is typed, but not drawn
+      line = [[line[0]![0].slice(1), line[0]![1]], ...line.slice(1)];
+      left--;
+    }
+    const full = line.map((s) => s[0]).join('');
+    let x = Math.round((g.w - textWidth(full, opts)) / 2);
+    for (const [text, colour] of line) {
+      drawText(ctx, text.slice(0, Math.max(0, left)), x, g.titleY + k * 18, colour, opts);
+      x += textWidth(text, opts);
+      left -= text.length;
+    }
+  });
 }
 
 export function drawHint(
@@ -183,7 +203,8 @@ export function drawHint(
   text: string,
   colour: string = C.white,
 ) {
-  drawText(ctx, text, g.seaX + SEA_W / 2, 291, colour, { align: 'center' });
+  const x = g.portrait ? g.w / 2 : g.seaX + SEA_W / 2;
+  drawText(ctx, text, x, g.hintY, colour, { align: 'center' });
 }
 
 /** A framed box in the middle of the sea, like the original's "READY PLAYER 2". */
