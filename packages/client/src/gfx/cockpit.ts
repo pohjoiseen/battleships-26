@@ -9,14 +9,6 @@ import { LH, LW } from './screen.ts';
  * housings are drawn once; needles, lamps and readouts move every frame.
  */
 
-/** The window the scene is seen through. */
-export const WIN = { x: 38, y: 30, w: 324, h: 196 } as const;
-
-const NOTCH = { x: 124, y: 0, w: 152, h: 24 };
-const DISPLAY = { x: 132, y: 234, w: 136, h: 62 };
-const LEFT_BOX = { x: 40, y: 234, w: 86, h: 62 };
-const RIGHT_BOX = { x: 274, y: 234, w: 86, h: 62 };
-
 type Rect = { x: number; y: number; w: number; h: number };
 
 interface Instrument {
@@ -25,8 +17,25 @@ interface Instrument {
   y: number;
 }
 
-/** Instruments down the two side columns, top to bottom. */
-const COLUMN: Instrument['kind'][] = [
+/** Where everything on the bridge sits, for a landscape or a portrait screen. */
+export interface CockpitLayout {
+  w: number;
+  h: number;
+  /** The window the scene is seen through. */
+  win: Rect;
+  notch: Rect;
+  display: Rect;
+  leftBox: Rect;
+  rightBox: Rect;
+  /** Rows of rivets across the metal. */
+  rivets: number[];
+  /** The housings the instruments sit in. */
+  housings: Rect[];
+  instruments: Instrument[];
+}
+
+/** Instruments in each housing, in order. */
+const KINDS: Instrument['kind'][] = [
   'gauge',
   'lamps',
   'counter',
@@ -37,17 +46,54 @@ const COLUMN: Instrument['kind'][] = [
   'bars',
 ];
 const INSTRUMENT_H = 34;
-const instruments: Instrument[] = [3, 367].flatMap((x) =>
-  COLUMN.map((kind, k) => ({ kind, x, y: 12 + k * INSTRUMENT_H })),
-);
 
-let frame: HTMLCanvasElement | null = null;
+/** The original's arrangement: two columns of instruments either side of the window. */
+const LANDSCAPE: CockpitLayout = {
+  w: LW,
+  h: LH,
+  win: { x: 38, y: 30, w: 324, h: 196 },
+  notch: { x: 124, y: 0, w: 152, h: 24 },
+  display: { x: 132, y: 234, w: 136, h: 62 },
+  leftBox: { x: 40, y: 234, w: 86, h: 62 },
+  rightBox: { x: 274, y: 234, w: 86, h: 62 },
+  rivets: [3, 25, 229, 297],
+  housings: [1, 365].map((x) => ({ x, y: 8, w: 34, h: KINDS.length * INSTRUMENT_H + 4 })),
+  instruments: [3, 367].flatMap((x) =>
+    KINDS.map((kind, k) => ({ kind, x, y: 12 + k * INSTRUMENT_H })),
+  ),
+};
 
-function frameImage(): HTMLCanvasElement {
-  if (frame) return frame;
+/** For a tall screen: the same window, with a row of instruments above and below it. */
+const PORTRAIT: CockpitLayout = {
+  w: 344,
+  h: 400,
+  win: { x: 10, y: 76, w: 324, h: 196 },
+  notch: { x: 96, y: 0, w: 152, h: 24 },
+  display: { x: 104, y: 328, w: 136, h: 62 },
+  leftBox: { x: 12, y: 328, w: 86, h: 62 },
+  rightBox: { x: 246, y: 328, w: 86, h: 62 },
+  rivets: [3, 25, 322, 397],
+  housings: [30, 284].map((y) => ({ x: 34, y, w: KINDS.length * INSTRUMENT_H + 4, h: 34 })),
+  instruments: [32, 286].flatMap((y) =>
+    KINDS.map((kind, k) => ({ kind, x: 38 + k * INSTRUMENT_H, y })),
+  ),
+};
+
+export const cockpitLayout = (portrait: boolean): CockpitLayout =>
+  portrait ? PORTRAIT : LANDSCAPE;
+
+/** The window in the landscape layout, which the salvo scene is drawn for. */
+export const WIN = LANDSCAPE.win;
+
+const frames = new Map<CockpitLayout, HTMLCanvasElement>();
+
+function frameImage(L: CockpitLayout): HTMLCanvasElement {
+  const cached = frames.get(L);
+  if (cached) return cached;
+  const { win: WIN, notch: NOTCH, display: DISPLAY } = L;
   const c = document.createElement('canvas');
-  c.width = LW;
-  c.height = LH;
+  c.width = L.w;
+  c.height = L.h;
   const ctx = c.getContext('2d')!;
   const px = (x: number, y: number, colour: string) => {
     ctx.fillStyle = colour;
@@ -56,9 +102,9 @@ function frameImage(): HTMLCanvasElement {
 
   // metal body: plain cyan, riveted along the top bar and the console
   ctx.fillStyle = C.cyan;
-  ctx.fillRect(0, 0, LW, LH);
-  for (const y of [3, 25, 229, 297]) {
-    for (let x = 4; x < LW - 2; x += 8) {
+  ctx.fillRect(0, 0, L.w, L.h);
+  for (const y of L.rivets) {
+    for (let x = 4; x < L.w - 2; x += 8) {
       px(x, y, C.brightWhite);
       px(x + 1, y + 1, C.blue);
     }
@@ -87,10 +133,9 @@ function frameImage(): HTMLCanvasElement {
   ctx.fillStyle = C.blue;
   ctx.fillRect(NOTCH.x + 2, NOTCH.y + NOTCH.h - 3, NOTCH.w - 4, 1);
 
-  // side columns
-  for (const x of [1, 365])
-    box(ctx, { x, y: 8, w: 34, h: COLUMN.length * INSTRUMENT_H + 4 }, C.grey, C.brightWhite);
-  for (const ins of instruments) {
+  // the instruments' housings
+  for (const r of L.housings) box(ctx, r, C.grey, C.brightWhite);
+  for (const ins of L.instruments) {
     const r = { x: ins.x, y: ins.y, w: 30, h: INSTRUMENT_H - 4 };
     box(ctx, r, C.black, C.white);
     if (ins.kind === 'gauge') {
@@ -116,7 +161,7 @@ function frameImage(): HTMLCanvasElement {
   }
 
   // console: the two readout boxes and the display
-  for (const r of [LEFT_BOX, RIGHT_BOX]) {
+  for (const r of [L.leftBox, L.rightBox]) {
     box(ctx, r, C.grey, C.brightWhite);
     box(ctx, { x: r.x + 4, y: r.y + 4, w: r.w - 8, h: 26 }, C.black, C.white);
     box(ctx, { x: r.x + 4, y: r.y + 34, w: r.w - 8, h: 24 }, C.black, C.white);
@@ -134,7 +179,8 @@ function frameImage(): HTMLCanvasElement {
     C.brightCyan,
   );
   box(ctx, DISPLAY, C.green, C.black);
-  return (frame = c);
+  frames.set(L, c);
+  return c;
 }
 
 function box(ctx: CanvasRenderingContext2D, r: Rect, fill: string, edge: string) {
@@ -163,12 +209,12 @@ export interface CockpitState {
 }
 
 /** Draws the frame around the window, and everything on it that moves. */
-export function drawCockpit(ctx: CanvasRenderingContext2D, s: CockpitState) {
-  ctx.drawImage(frameImage(), 0, 0);
+export function drawCockpit(ctx: CanvasRenderingContext2D, L: CockpitLayout, s: CockpitState) {
+  ctx.drawImage(frameImage(L), 0, 0);
 
-  drawText(ctx, s.title, LW / 2, NOTCH.y + 5, s.titleColour, { align: 'center', scale: 2 });
+  drawText(ctx, s.title, L.w / 2, L.notch.y + 5, s.titleColour, { align: 'center', scale: 2 });
 
-  for (const [k, ins] of instruments.entries()) {
+  for (const [k, ins] of L.instruments.entries()) {
     // each instrument drifts on its own slow cycle
     const rng = createRng(k + 1);
     const phase = rng.next() * 1000;
@@ -216,14 +262,15 @@ export function drawCockpit(ctx: CanvasRenderingContext2D, s: CockpitState) {
   }
 
   // shots still to fly on the left, hits on the right
-  readout(ctx, LEFT_BOX, 'SHOTS', s.shotsLeft, s.t, 0);
-  readout(ctx, RIGHT_BOX, 'HITS', s.hits, s.t, 1);
+  readout(ctx, L.leftBox, 'SHOTS', s.shotsLeft, s.t, 0);
+  readout(ctx, L.rightBox, 'HITS', s.hits, s.t, 1);
 
   const lines = ['LAUNCH', 'OFFENSIVE', 'STRIKE'];
   lines.forEach((line, k) => {
-    const y = DISPLAY.y + 5 + k * 19;
-    drawText(ctx, line, LW / 2 + 1, y + 1, C.black, { align: 'center', scale: 2 });
-    drawText(ctx, line, LW / 2, y, C.brightYellow, { align: 'center', scale: 2 });
+    const y = L.display.y + 5 + k * 19;
+    const cx = L.display.x + L.display.w / 2;
+    drawText(ctx, line, cx + 1, y + 1, C.black, { align: 'center', scale: 2 });
+    drawText(ctx, line, cx, y, C.brightYellow, { align: 'center', scale: 2 });
   });
 }
 

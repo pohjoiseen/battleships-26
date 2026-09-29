@@ -19,6 +19,7 @@ import {
   turnTitle,
   TYPE_MS,
 } from '@bs/shared';
+import { cockpitLayout } from '../gfx/cockpit.ts';
 import { drawText, textWidth } from '../gfx/font.ts';
 import { FIRE_BEEP_MS, sound, TYPE_UNIT_MS } from '../gfx/sound.ts';
 import { C, playerColour } from '../gfx/palette.ts';
@@ -245,6 +246,7 @@ export class App {
             other(v.lastSalvo!.shooter),
             v.seas[other(v.lastSalvo!.shooter)].damage,
             now - this.salvoStart,
+            this.portrait,
           );
           break;
         case 'results':
@@ -294,6 +296,8 @@ export class App {
       case 'over-message':
       case 'winners':
         return geometry(false, this.portrait);
+      case 'salvo':
+        return cockpitLayout(this.portrait);
       default:
         return { w: LW, h: LH };
     }

@@ -7,7 +7,7 @@ import {
   type Rng,
   shipSize,
 } from '@bs/shared';
-import { drawCockpit, WIN } from '../gfx/cockpit.ts';
+import { cockpitLayout, drawCockpit, WIN } from '../gfx/cockpit.ts';
 import { C, playerColour } from '../gfx/palette.ts';
 import { drawShipCentred, factionOf, type ShipLook, shipWidth } from '../gfx/ships.ts';
 import type { Faction } from '../gfx/shipart.ts';
@@ -146,13 +146,17 @@ export function drawSalvo(
   defender: PlayerIndex,
   damageAfter: readonly number[],
   elapsed: number,
+  portrait = false,
 ) {
+  const layout = cockpitLayout(portrait);
   const faction = factionOf(defender);
   const k = salvo.durationMs / nominalOf(salvo);
   const struck = events.filter((e) => e.ship !== null && elapsed >= e.impact);
   const sinceHit = Math.min(...struck.map((e) => elapsed - e.impact));
 
   ctx.save();
+  // the scene is drawn for the landscape window; move it to wherever the window is
+  ctx.translate(layout.win.x - WIN.x, layout.win.y - WIN.y);
   ctx.beginPath();
   ctx.rect(WIN.x, WIN.y, WIN.w, WIN.h);
   ctx.clip();
@@ -230,7 +234,7 @@ export function drawSalvo(
   }
   ctx.restore();
 
-  drawCockpit(ctx, {
+  drawCockpit(ctx, layout, {
     title: `PLAYER ${salvo.shooter + 1}`,
     titleColour: playerColour(salvo.shooter),
     shotsLeft: events.filter((e) => e.launch > elapsed).length,
