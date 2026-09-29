@@ -33,9 +33,8 @@ npm run logo         # regenerate packages/client/public/logo.svg from scripts/m
   feedback). `game.ts` is a pure state machine; `views.ts` makes the per-player view, which never
   contains the opponent's ship positions; `protocol.ts` holds the WebSocket messages.
 - `packages/server`: Fastify + WebSocket. `sessions.ts` handles game creation, player tokens and
-  single-use invite links; `room.ts` runs one game, paces the salvo animation and the AI.
-  `ai/simple.ts` is our probability-density AI; `ai/original/` is the original's, ported from
-  the Z80 code (see below).
+  single-use invite links; `room.ts` runs one game, paces the salvo animation and the AI. `ai/`
+  has the computer players (see below).
 - `packages/client`: `index.html` is the menu; `game.html` is one canvas drawn at 400x300 and
   scaled up with crisp pixels. The graphics are placeholders until the art milestone.
 - `e2e`: Playwright specs. The game page exposes `window.__bs` so tests can find cells on the canvas.
@@ -59,8 +58,13 @@ Checked against the original (playthrough video in `zx-screenshots/`) where the 
 
 ## The computer player
 
-The menu's COMPUTER option picks the opponent in one-player games: **1987**, the original's own AI,
-or **2026**, ours. The original's is ported instruction by instruction from the tape
+The menu's COMPUTER option picks the opponent in one-player games: **1987**, the original's own AI;
+**2026**, our probability-density AI (`ai/simple.ts`); or **ACE**, our Monte Carlo AI
+(`ai/strong.ts`). ACE samples whole fleets that fit everything it has seen, picks salvos that find
+the most ships while finishing damaged ones, and looks ahead by playing candidate salvos out to the
+end of the game in some of those fleets. Neither of ours cheats.
+
+The original's is ported instruction by instruction from the tape
 (`packages/server/src/ai/original/machine.ts`) and tested against the real Z80 code run in an
 emulator; `docs/original-ai.asm` is its annotated disassembly and `scripts/original-ai/` has the
 tools. It keeps all its habits:

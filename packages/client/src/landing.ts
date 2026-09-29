@@ -23,8 +23,13 @@ const logo = new Image();
 logo.src = '/logo.svg';
 
 let salvo = true;
-/** The computer player: the original's, ported from the Z80 code, or our own. */
-let ai: 'original' | 'simple' = 'original';
+/** The computer players, as the menu names them: the original's, ported from the Z80 code, and ours. */
+const AIS = [
+  { id: 'original', label: '1987' },
+  { id: 'simple', label: '2026' },
+  { id: 'strong', label: 'ACE' },
+] as const;
+let ai = 0;
 let selected = 0;
 let message = '';
 
@@ -35,7 +40,7 @@ const rowY = (i: number) => MENU.y + 5 + i * ROW_H;
 const items = () => [
   '1 PLAYER',
   '2 PLAYERS',
-  `COMPUTER   - ${ai === 'original' ? '1987' : '2026'}`,
+  `COMPUTER   - ${AIS[ai]!.label}`,
   `SALVO FIRE - ${salvo ? 'ON' : 'OFF'}`,
   `SOUND      - ${sound.muted ? 'OFF' : 'ON'}`,
 ];
@@ -63,7 +68,7 @@ function activate(i: number) {
   select(i);
   if (i === 0) void start('1p');
   else if (i === 1) void start('2p');
-  else if (i === 2) ai = ai === 'original' ? 'simple' : 'original';
+  else if (i === 2) ai = (ai + 1) % AIS.length;
   else if (i === 3) salvo = !salvo;
   else sound.toggleMute();
   syncButtons();
@@ -84,7 +89,7 @@ async function start(mode: '1p' | '2p') {
     const res = await fetch('/api/games', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ mode, salvo, ai }),
+      body: JSON.stringify({ mode, salvo, ai: AIS[ai]!.id }),
     });
     if (!res.ok) throw new Error(String(res.status));
     const { url } = (await res.json()) as CreateGameResponse;
