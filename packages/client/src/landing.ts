@@ -1,4 +1,4 @@
-import type { CreateGameResponse } from '@bs/shared';
+import type { AiKind, AisResponse, CreateGameResponse } from '@bs/shared';
 import { drawScene } from './game/sailpast.ts';
 import { drawSplash } from './game/salvo.ts';
 import { drawText } from './gfx/font.ts';
@@ -24,12 +24,26 @@ logo.src = '/logo.svg';
 
 let salvo = true;
 /** The computer players, as the menu names them: the original's, ported from the Z80 code, and ours. */
-const AIS = [
+let AIS: readonly { id: AiKind; label: string }[] = [
   { id: 'original', label: '1987' },
   { id: 'simple', label: '2026' },
   { id: 'strong', label: 'ACE' },
-] as const;
+];
 let ai = 0;
+
+// the server may offer fewer (ACE is heavy for a small server); if it can't say, offer all
+void fetch('/api/ais')
+  .then((res) => (res.ok ? (res.json() as Promise<AisResponse>) : null))
+  .then((offered) => {
+    const ais = offered && AIS.filter((a) => offered.ais.includes(a.id));
+    if (ais?.length) {
+      AIS = ais;
+      ai = 0;
+      syncButtons();
+    }
+  })
+  .catch(() => {});
+
 let selected = 0;
 let message = '';
 

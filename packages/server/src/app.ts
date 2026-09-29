@@ -3,6 +3,9 @@ import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import {
+  AI_KINDS,
+  type AiKind,
+  type AisResponse,
   clientMessage,
   createGameRequest,
   type CreateGameResponse,
@@ -15,9 +18,12 @@ export interface AppOptions extends SessionOptions {
   /** Built client to serve (production). In development Vite serves the client instead. */
   clientDir?: string;
   logger?: boolean;
+  /** The computer players offered; all by default. */
+  ais?: readonly AiKind[];
 }
 
 export async function buildApp(opts: AppOptions) {
+  const ais = opts.ais ?? AI_KINDS;
   const app = Fastify({ logger: opts.logger ?? false });
   const sessions = new Sessions(opts);
   await app.register(fastifyWebsocket);
@@ -26,6 +32,9 @@ export async function buildApp(opts: AppOptions) {
     const parsed = createGameRequest.safeParse(req.body ?? {});
     if (!parsed.success) return reply.code(400).send({ error: 'bad request' });
     const { mode, salvo, ai } = parsed.data;
+    if (mode === '1p' && !ais.includes(ai)) {
+      return reply.code(400).send({ error: `computer player ${ai} is not available here` });
+    }
     const token = sessions.create(mode, { salvo }, ai);
     return { url: `/g/${token}` } satisfies CreateGameResponse;
   });
@@ -68,6 +77,8 @@ export async function buildApp(opts: AppOptions) {
     });
     socket.on('close', () => seat.room.disconnect(seat.player, conn));
   });
+
+  app.get('/api/ais', async () => ({ ais: [...ais] }) satisfies AisResponse);
 
   app.get('/api/health', async () => ({ ok: true, rooms: sessions.roomCount }));
 

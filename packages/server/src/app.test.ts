@@ -12,8 +12,8 @@ afterEach(async () => {
   app = undefined;
 });
 
-async function start() {
-  const built = await buildApp({ timeScale: 0.01, seed: 1, idleMs: 1000 });
+async function start(opts: Partial<Parameters<typeof buildApp>[0]> = {}) {
+  const built = await buildApp({ timeScale: 0.01, seed: 1, idleMs: 1000, ...opts });
   app = built.app;
   await app.listen({ port: 0, host: '127.0.0.1' });
   const { port } = app.server.address() as AddressInfo;
@@ -85,6 +85,25 @@ describe('server', () => {
     const joined = await p1.view((v) => v.opponent.joined);
     expect(joined.inviteUrl).toBeUndefined();
     p1.socket.close();
+  });
+
+  it('offers only the computer players it is configured with', async () => {
+    const all = await start();
+    expect(await (await fetch(`${all.base}/api/ais`)).json()).toEqual({
+      ais: ['original', 'simple', 'strong'],
+    });
+    await app!.close();
+
+    const { base } = await start({ ais: ['original', 'simple'] });
+    expect(await (await fetch(`${base}/api/ais`)).json()).toEqual({ ais: ['original', 'simple'] });
+    const post = (ai: string) =>
+      fetch(`${base}/api/games`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: '1p', ai }),
+      });
+    expect((await post('strong')).status).toBe(400);
+    expect((await post('original')).status).toBe(200);
   });
 
   it('rejects unknown tokens', async () => {

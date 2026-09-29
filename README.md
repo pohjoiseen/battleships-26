@@ -15,7 +15,9 @@ npm start            # production: the server serves the built client on :3000
 ```
 
 Server environment variables: `PORT` (3000), `HOST` (127.0.0.1), `BS_TIME_SCALE` (1; scales the
-salvo animation and AI pacing, the tests use 0.05), `BS_SEED` (makes games reproducible).
+salvo animation and AI pacing, the tests use 0.05), `BS_SEED` (makes games reproducible),
+`BS_AIS` (the computer players offered, from `original,simple,strong`; all by default. ACE,
+`strong`, takes about 0.1-0.5 s of CPU per turn, so a small server may want `original,simple`).
 
 ## Checks
 

@@ -30,11 +30,20 @@ export type ServerMessage =
   | { t: 'cursor'; cell: number | null }
   | { t: 'error'; message: string; fatal?: boolean };
 
+/** The computer players: the original's, our density AI and ACE, our Monte Carlo AI. */
+export const AI_KINDS = ['original', 'simple', 'strong'] as const;
+export type AiKind = (typeof AI_KINDS)[number];
+
+/** GET /api/ais: the computer players this server offers (ACE may be off on small servers). */
+export interface AisResponse {
+  ais: AiKind[];
+}
+
 export const createGameRequest = z.object({
   mode: z.enum(['1p', '2p']),
   salvo: z.boolean().default(true),
   /** The computer player in a one-player game: the original's, or one of ours. */
-  ai: z.enum(['original', 'simple', 'strong']).default('simple'),
+  ai: z.enum(AI_KINDS).default('simple'),
 });
 
 export type CreateGameRequest = z.infer<typeof createGameRequest>;

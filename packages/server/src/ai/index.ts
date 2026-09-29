@@ -1,3 +1,4 @@
+import type { AiKind } from '@bs/shared';
 import { createOriginalAi } from './original/index.ts';
 import { simpleAi } from './simple.ts';
 import { strongAi } from './strong.ts';
@@ -10,6 +11,6 @@ export const AI_PLAYERS = {
   simple: () => simpleAi,
   original: createOriginalAi,
   strong: () => strongAi,
-} satisfies Record<string, () => AiPlayer>;
+} satisfies Record<AiKind, () => AiPlayer>;
 
-export type AiKind = keyof typeof AI_PLAYERS;
+export type { AiKind };
