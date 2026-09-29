@@ -14,6 +14,8 @@ export class Screen {
   readonly buffer: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D;
   private readonly out: CanvasRenderingContext2D;
+  /** CSS pixels of the window's height to leave free for other things on the page. */
+  reserve = 0;
 
   constructor(readonly canvas: HTMLCanvasElement) {
     this.buffer = document.createElement('canvas');
@@ -43,7 +45,8 @@ export class Screen {
 
   resize(): void {
     const dpr = window.devicePixelRatio || 1;
-    const fit = Math.min((window.innerWidth * dpr) / this.w, (window.innerHeight * dpr) / this.h);
+    const height = Math.max(100, window.innerHeight - this.reserve);
+    const fit = Math.min((window.innerWidth * dpr) / this.w, (height * dpr) / this.h);
     // Whole-number scales keep pixels even; on dense screens unevenness is invisible, so use it all.
     const scale = dpr >= 2 ? fit : Math.max(1, Math.floor(fit));
     this.canvas.width = Math.round(this.w * scale);

@@ -8,19 +8,32 @@ const canvas = document.querySelector<HTMLCanvasElement>('#screen')!;
 const invite = document.querySelector<HTMLElement>('#invite')!;
 const inviteLink = document.querySelector<HTMLInputElement>('#invite-link')!;
 const copyButton = document.querySelector<HTMLButtonElement>('#invite-copy')!;
+const shareButton = document.querySelector<HTMLButtonElement>('#invite-share')!;
 
 const token = location.pathname.split('/').filter(Boolean)[1] ?? '';
 const screen = new Screen(canvas);
 const app = new App(screen);
 
 function showInvite(view: PlayerView) {
-  if (view.inviteUrl) {
-    inviteLink.value = new URL(view.inviteUrl, location.origin).href;
-    invite.hidden = false;
-  } else {
-    invite.hidden = true;
-  }
+  const hidden = !view.inviteUrl;
+  if (view.inviteUrl) inviteLink.value = new URL(view.inviteUrl, location.origin).href;
+  if (hidden === invite.hidden) return;
+  invite.hidden = hidden;
+  fitAroundInvite();
 }
+
+/** Shrinks the game to leave room for the invite under it. */
+function fitAroundInvite() {
+  screen.reserve = invite.hidden ? 0 : invite.offsetHeight + 16;
+  screen.resize();
+}
+window.addEventListener('resize', fitAroundInvite);
+
+// phones can hand the link straight to a messenger
+shareButton.hidden = !navigator.share;
+shareButton.addEventListener('click', () => {
+  navigator.share({ title: 'Battleships', url: inviteLink.value }).catch(() => {});
+});
 
 const net = new Net(token, {
   view: (view) => {
