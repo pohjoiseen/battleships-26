@@ -1,0 +1,38 @@
+# The game server as a systemd service; see "Deploying" in README.md.
+# Install: sudo cp deploy/battleships.service /etc/systemd/system/
+#          sudo systemctl daemon-reload && sudo systemctl enable --now battleships
+
+[Unit]
+Description=Battleships game server
+After=network.target
+
+[Service]
+User=battleships
+Group=battleships
+WorkingDirectory=/home/battleships/battleships-26/packages/server
+# Node from nvm, through ~/node, a link to the version in use
+ExecStart=/home/battleships/node/bin/node --import tsx src/index.ts
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=3026
+# ACE takes 0.1-0.5 s of CPU a turn; leave it out on a small server
+Environment=BS_AIS=original,simple
+# games in progress and the hi-scores (/var/lib/battleships, made by StateDirectory)
+Environment=BS_DB=/var/lib/battleships/battleships.db
+StateDirectory=battleships
+Restart=on-failure
+RestartSec=2
+
+# it needs nothing but its state directory to write to, and /tmp for tsx's cache
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

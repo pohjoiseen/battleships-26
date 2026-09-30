@@ -21,6 +21,49 @@ salvo animation and AI pacing, the tests use 0.05), `BS_SEED` (makes games repro
 `BS_DB` (the SQLite file games are saved in, so they survive a restart; `data/battleships.db` by
 default, `:memory:` to keep nothing). Games nobody has touched for a day are dropped.
 
+## Deploying
+
+On a Linux server with systemd and nginx (written for Ubuntu 24.04): the game runs as its own
+user, with Node 26 from [nvm](https://github.com/nvm-sh/nvm) (Ubuntu's Node is too old), behind
+nginx, which does HTTPS. [deploy/](deploy) has the systemd unit and the nginx site; they assume
+the user `battleships`, the checkout `/home/battleships/battleships-26`, port 3026 and the domain
+bs26.pohjoiseen.fi.
+
+```sh
+# a user for the game, with Node
+sudo useradd --create-home --shell /bin/bash battleships
+sudo -iu battleships
+# install nvm with the line from its README, then log out and in again
+nvm install 26
+ln -sfn "$(dirname "$(dirname "$(nvm which 26)")")" ~/node   # the service runs ~/node/bin/node
+
+# the game: the repository is private, so give the server a read-only deploy key (GitHub: the
+# repository's Settings > Deploy keys > Add, with the public key this prints)
+ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519 && cat ~/.ssh/id_ed25519.pub
+git clone git@github.com:pohjoiseen/battleships-26.git
+# npm ci installs the build tools too; the server also runs through tsx
+cd battleships-26 && npm ci && npm run build
+exit
+
+# the service, then nginx and the certificate (as the comments at the top of each file say)
+sudo cp /home/battleships/battleships-26/deploy/battleships.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now battleships
+sudo cp /home/battleships/battleships-26/deploy/nginx.conf \
+  /etc/nginx/sites-available/bs26.pohjoiseen.fi
+sudo ln -s ../sites-available/bs26.pohjoiseen.fi /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d bs26.pohjoiseen.fi   # sudo apt install certbot python3-certbot-nginx
+```
+
+The log is in `journalctl -u battleships` (JSON lines, one per request; tokens are left out).
+
+To update: as `battleships`, `cd battleships-26 && git pull && npm ci && npm run build`, then
+`sudo systemctl restart battleships`. Games in progress carry on after the restart. For a newer
+Node, `nvm install` it, point `~/node` at it as above, and restart.
+
+Games and hi-scores are in `/var/lib/battleships/battleships.db`. To back it up while the server
+runs: `sudo sqlite3 /var/lib/battleships/battleships.db ".backup /some/where/battleships.db"`.
+
 ## Checks
 
 ```sh
