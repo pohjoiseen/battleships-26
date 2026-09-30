@@ -23,9 +23,32 @@ export interface AppOptions extends SessionOptions {
   ais?: readonly AiKind[];
 }
 
+/**
+ * A URL as the log shows it: without the tokens in game pages, invites and the socket's query,
+ * since whoever holds a token can take that player's seat.
+ */
+export function redactUrl(url: string): string {
+  return url.replace(/^\/(g|join)\/[^/?#]+/, '/$1/…').replace(/([?&]token=)[^&#]*/, '$1…');
+}
+
 export async function buildApp(opts: AppOptions) {
   const ais = opts.ais ?? AI_KINDS;
-  const app = Fastify({ logger: opts.logger ?? false });
+  const app = Fastify({
+    logger: opts.logger
+      ? {
+          serializers: {
+            req: (req) => ({
+              method: req.method,
+              url: redactUrl(req.url),
+              host: req.host,
+              remoteAddress: req.ip,
+            }),
+          },
+        }
+      : false,
+    // behind nginx on the same machine: the client's address is in X-Forwarded-For
+    trustProxy: 'loopback',
+  });
   const sessions = new Sessions(opts);
   await app.register(fastifyWebsocket);
 

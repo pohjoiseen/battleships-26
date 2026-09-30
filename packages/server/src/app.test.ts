@@ -11,7 +11,7 @@ import {
 } from '@bs/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import { buildApp } from './app.ts';
+import { buildApp, redactUrl } from './app.ts';
 import { sqliteStore } from './store.ts';
 
 type App = Awaited<ReturnType<typeof buildApp>>['app'];
@@ -411,5 +411,16 @@ describe('hi-scores', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('logging', () => {
+  it('leaves tokens out of logged URLs', () => {
+    expect(redactUrl('/ws?token=abc-DEF_123')).toBe('/ws?token=…');
+    expect(redactUrl('/ws?x=1&token=abc&y=2')).toBe('/ws?x=1&token=…&y=2');
+    expect(redactUrl('/g/abc-DEF_123')).toBe('/g/…');
+    expect(redactUrl('/join/abc?utm=x')).toBe('/join/…?utm=x');
+    expect(redactUrl('/api/games')).toBe('/api/games');
+    expect(redactUrl('/assets/game-9fSiiGEr.js')).toBe('/assets/game-9fSiiGEr.js');
   });
 });
