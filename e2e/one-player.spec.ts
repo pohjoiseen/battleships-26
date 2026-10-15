@@ -109,3 +109,23 @@ test('a refresh keeps the game', async ({ page }) => {
   expect(after.yourLayout).toEqual(before.yourLayout);
   expect(after.you).toBe(0);
 });
+
+test('the menu remembers the computer player and salvo fire', async ({ page }) => {
+  await page.goto('/');
+  const computer = page.locator('#menu button').nth(2);
+  const salvo = page.locator('#menu button').nth(3);
+  await expect(computer).toHaveText('COMPUTER - 1987');
+  await page.keyboard.press('c');
+  await page.keyboard.press('c');
+  await page.keyboard.press('s');
+  await expect(computer).toHaveText('COMPUTER - 2027');
+  await page.reload();
+  await expect(computer).toHaveText('COMPUTER - 2027');
+  await expect(salvo).toHaveText('SALVO FIRE - OFF');
+
+  // and the game it starts is played that way
+  await page.keyboard.press('1');
+  await page.waitForURL(/\/g\//);
+  await waitForScreen(page, 'placing');
+  expect((await view(page)).settings.salvo).toBe(false);
+});

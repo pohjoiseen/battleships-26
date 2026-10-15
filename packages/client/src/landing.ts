@@ -37,7 +37,16 @@ const ctx = screen.ctx;
 const logo = new Image();
 logo.src = '/logo.svg';
 
-let salvo = true;
+/** The menu's computer player and salvo fire, remembered in the browser for next time. */
+const MENU_KEY = 'bs.menu';
+let remembered: { ai?: unknown; salvo?: unknown } = {};
+try {
+  remembered = JSON.parse(localStorage.getItem(MENU_KEY) ?? '{}') as typeof remembered;
+} catch {
+  // storage can be unavailable or hold junk; start from the defaults
+}
+
+let salvo = remembered.salvo !== false;
 /** The computer players, as the menu names them: the original's, ported from the Z80 code, and ours. */
 let AIS: readonly { id: AiKind; label: string }[] = [
   { id: 'original', label: '1987' },
@@ -46,7 +55,22 @@ let AIS: readonly { id: AiKind; label: string }[] = [
   { id: 'strong', label: 'ACE' },
   { id: 'strong2', label: 'ACE 2' },
 ];
-let ai = 0;
+/** The remembered computer player, if it's on offer; else the first. */
+const rememberedAi = () =>
+  Math.max(
+    0,
+    AIS.findIndex((a) => a.id === remembered.ai),
+  );
+let ai = rememberedAi();
+
+function remember() {
+  remembered = { ai: AIS[ai]!.id, salvo };
+  try {
+    localStorage.setItem(MENU_KEY, JSON.stringify(remembered));
+  } catch {
+    // storage can be unavailable; the choices last until the page goes
+  }
+}
 
 // the server may offer fewer (ACE is heavy for a small server); if it can't say, offer all
 void fetch('/api/ais')
@@ -55,7 +79,7 @@ void fetch('/api/ais')
     const ais = offered && AIS.filter((a) => offered.ais.includes(a.id));
     if (ais?.length) {
       AIS = ais;
-      ai = 0;
+      ai = rememberedAi();
       syncButtons();
     }
   })
@@ -237,6 +261,7 @@ function activate(i: number) {
   else if (i === 1) void start('2p');
   else if (i === 2) ai = (ai + 1) % AIS.length;
   else if (i === 3) salvo = !salvo;
+  if (i === 2 || i === 3) remember();
   else if (i === 4) sound.toggleMute();
   else openScores();
   syncButtons();
