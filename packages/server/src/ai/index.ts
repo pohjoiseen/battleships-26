@@ -1,8 +1,8 @@
 import type { AiKind } from '@bs/shared';
 import type { AiState } from './original/machine.ts';
 import { createOriginalAi } from './original/index.ts';
-import { simpleAi } from './simple.ts';
-import { strongAi } from './strong.ts';
+import { simple2Ai, simpleAi } from './simple.ts';
+import { strong2Ai, strongAi } from './strong.ts';
 import type { AiPlayer } from './types.ts';
 
 export type { AiPlayer, ShotRequest } from './types.ts';
@@ -15,6 +15,8 @@ export const AI_PLAYERS = {
   simple: () => simpleAi,
   original: (saved?: unknown) => createOriginalAi(saved as AiState | undefined),
   strong: () => strongAi,
+  simple2: () => simple2Ai,
+  strong2: () => strong2Ai,
 } satisfies Record<AiKind, (saved?: unknown) => AiPlayer>;
 
 export type { AiKind };

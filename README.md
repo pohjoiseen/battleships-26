@@ -87,8 +87,9 @@ npm start            # production: the server serves the built client on :3000
 
 Server environment variables: `PORT` (3000), `HOST` (127.0.0.1), `BS_TIME_SCALE` (1; scales the
 salvo animation and AI pacing, the tests use 0.05), `BS_SEED` (makes games reproducible),
-`BS_AIS` (the computer players offered, from `original,simple,strong`; all by default. ACE,
-`strong`, takes about 0.1-0.5 s of CPU per turn, so a small server may want `original,simple`),
+`BS_AIS` (the computer players offered, from `original,simple,simple2,strong,strong2`; all by
+default. ACE and ACE 2, `strong` and `strong2`, take about 0.1-0.5 s of CPU per turn, so a small
+server may want `original,simple,simple2`),
 `BS_DB` (the SQLite file games are saved in, so they survive a restart; `data/battleships.db` by
 default, `:memory:` to keep nothing). Games nobody has touched for a day are dropped.
 
@@ -182,6 +183,13 @@ The menu's COMPUTER option picks the opponent in one-player games: **1987**, the
 (`ai/strong.ts`). ACE samples whole fleets that fit everything it has seen, picks salvos that find
 the most ships while finishing damaged ones, and looks ahead by playing candidate salvos out to the
 end of the game in some of those fleets. Neither of ours cheats.
+
+**2027** and **ACE 2** are the same two with less predictable openings. 2026 and ACE always take
+the likeliest cell when hunting, so they open much the same way every game, and people learned to
+place around that: straight ships in the corners, which few placements cover, survived for turns.
+The new ones draw each hunting shot at random, with odds of its likelihood squared
+(`HUNT_POWER`); shots that finish off a hit ship are still the likeliest ones. The old ones stay
+in the menu, each with its own hi-score tables.
 
 The original's is ported instruction by instruction from the tape
 (`packages/server/src/ai/original/machine.ts`) and tested against the real Z80 code run in an

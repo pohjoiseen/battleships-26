@@ -42,7 +42,9 @@ let salvo = true;
 let AIS: readonly { id: AiKind; label: string }[] = [
   { id: 'original', label: '1987' },
   { id: 'simple', label: '2026' },
+  { id: 'simple2', label: '2027' },
   { id: 'strong', label: 'ACE' },
+  { id: 'strong2', label: 'ACE 2' },
 ];
 let ai = 0;
 

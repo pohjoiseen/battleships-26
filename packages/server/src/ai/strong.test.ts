@@ -115,6 +115,28 @@ describe('strong AI', () => {
     for (const c of shots) expect(sea[c]).toBe(0);
   });
 
+  it('with a hunt power, plays legal salvos and opens differently every game', () => {
+    const wild: AiPlayer = {
+      placeFleet: randomLayout,
+      chooseShots: (request, rng) => chooseShotsStrong(request, rng, { ...QUICK, huntPower: 2 }),
+    };
+    play([wild, randomShooter], createRng(5));
+    const opening = (seed: number) =>
+      new Set(
+        wild.chooseShots(
+          {
+            sea: new Array<number>(CELL_COUNT).fill(0),
+            damage: FLEET.map(() => 0),
+            count: 24,
+            fleet: [],
+          },
+          createRng(seed),
+        ),
+      );
+    const [a, b] = [opening(1), opening(2)];
+    expect([...a].filter((c) => b.has(c)).length).toBeLessThan(12);
+  });
+
   it('beats random shooting', () => {
     let wins = 0;
     for (let seed = 1; seed <= 6; seed++) {

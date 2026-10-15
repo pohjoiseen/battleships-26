@@ -9,7 +9,9 @@ export function boardLabel(board: string): string {
     {
       original: 'VS COMPUTER 1987',
       simple: 'VS COMPUTER 2026',
+      simple2: 'VS COMPUTER 2027',
       strong: 'VS ACE',
+      strong2: 'VS ACE 2',
       human: '2 PLAYERS',
     }[opponent!] ?? opponent!.toUpperCase();
   return single ? `${who}, SALVO OFF` : who;

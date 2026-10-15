@@ -33,7 +33,7 @@ export type ServerMessage =
   | { t: 'error'; message: string; fatal?: boolean };
 
 /** The computer players: the original's, our density AI and ACE, our Monte Carlo AI. */
-export const AI_KINDS = ['original', 'simple', 'strong'] as const;
+export const AI_KINDS = ['original', 'simple', 'simple2', 'strong', 'strong2'] as const;
 export type AiKind = (typeof AI_KINDS)[number];
 
 /** GET /api/ais: the computer players this server offers (ACE may be off on small servers). */

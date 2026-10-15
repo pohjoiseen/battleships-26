@@ -16,7 +16,7 @@ Environment=NODE_ENV=production
 Environment=HOST=127.0.0.1
 Environment=PORT=3026
 # ACE takes 0.1-0.5 s of CPU a turn; leave it out on a small server
-Environment=BS_AIS=original,simple
+Environment=BS_AIS=original,simple,simple2
 # games in progress and the hi-scores (/var/lib/battleships, made by StateDirectory)
 Environment=BS_DB=/var/lib/battleships/battleships.db
 StateDirectory=battleships

@@ -100,7 +100,7 @@ describe('server', () => {
   it('offers only the computer players it is configured with', async () => {
     const all = await start();
     expect(await (await fetch(`${all.base}/api/ais`)).json()).toEqual({
-      ais: ['original', 'simple', 'strong'],
+      ais: ['original', 'simple', 'simple2', 'strong', 'strong2'],
     });
     await app!.close();
 
@@ -167,7 +167,7 @@ describe('server', () => {
     p2.socket.close();
   });
 
-  it.each(['simple', 'original', 'strong'])(
+  it.each(['simple', 'original', 'strong', 'simple2', 'strong2'])(
     'lets the %s AI place its fleet and take its turn in 1-player mode',
     async (ai) => {
       const { base, ws } = await start();
@@ -376,8 +376,12 @@ describe('hi-scores', () => {
       'original-single',
       'simple',
       'simple-single',
+      'simple2',
+      'simple2-single',
       'strong',
       'strong-single',
+      'strong2',
+      'strong2-single',
       'human',
       'human-single',
     ]);

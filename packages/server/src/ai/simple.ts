@@ -63,6 +63,13 @@ export interface DensityOptions {
    * stand-in for the original Spectrum AI, for comparison.
    */
   huntRandomly?: boolean;
+  /**
+   * Draw hunting shots at random, each cell with odds of its density to this power, instead of
+   * always the densest cell. Always taking the densest makes the openings much the same every
+   * game, which people learn to place around (corners, which few placements cover, were left
+   * alone for turns). Shots that finish off a hit ship are still the densest ones.
+   */
+  huntPower?: number;
 }
 
 /**
@@ -113,6 +120,7 @@ export function chooseShotsByDensity(
   while (chosen.size < count) {
     const density = new Float64Array(CELL_COUNT);
     for (const { cells, weight } of targeting) for (const c of cells) density[c]! += weight;
+    const targeted = Float64Array.from(density);
     for (const { cells, weight } of hunting) for (const c of cells) density[c]! += weight;
 
     let best = -1;
@@ -127,6 +135,11 @@ export function chooseShotsByDensity(
       }
     }
     if (best < 0) break; // no unshot cells left
+    if (opts.huntPower !== undefined && targeted[best] === 0) {
+      best =
+        drawCell(density, opts.huntPower, (c) => sea[c] === SEA_UNKNOWN && !chosen.has(c), rng) ??
+        best;
+    }
     chosen.add(best);
     // a hunting placement is already being tested by this shot, don't count it again
     hunting = hunting.filter(({ cells }) => !cells.includes(best));
@@ -134,7 +147,43 @@ export function chooseShotsByDensity(
   return [...chosen];
 }
 
+/** A cell drawn with odds of its score to the given power, among those allowed; null if none scores. */
+export function drawCell(
+  score: ArrayLike<number>,
+  power: number,
+  allowed: (c: number) => boolean,
+  rng: { next(): number },
+): number | null {
+  const odds = new Float64Array(score.length);
+  let total = 0;
+  for (let c = 0; c < score.length; c++) {
+    if (!allowed(c) || score[c]! <= 0) continue;
+    odds[c] = score[c]! ** power;
+    total += odds[c]!;
+  }
+  if (total === 0) return null;
+  let r = rng.next() * total;
+  let last = null;
+  for (let c = 0; c < score.length; c++) {
+    if (odds[c] === 0) continue;
+    last = c;
+    r -= odds[c]!;
+    if (r < 0) return c;
+  }
+  return last;
+}
+
 export const simpleAi: AiPlayer = {
   placeFleet: (rng) => randomLayout(rng),
   chooseShots: (request, rng) => chooseShotsByDensity(request, rng),
+};
+
+/** HUNT_POWER: see bench.ts, the cornered columns. */
+export const HUNT_POWER = 2;
+
+/** 2027: the same, but no two openings alike. */
+export const simple2Ai: AiPlayer = {
+  placeFleet: (rng) => randomLayout(rng),
+  chooseShots: (request, rng) =>
+    chooseShotsByDensity(request, rng, { ...DEFAULT_DENSITY, huntPower: HUNT_POWER }),
 };

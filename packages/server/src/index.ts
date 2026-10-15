@@ -5,7 +5,7 @@ import { sqliteStore } from './store.ts';
 
 const env = process.env;
 
-/** BS_AIS: the computer players to offer, e.g. "original,simple" to leave out ACE (strong). */
+/** BS_AIS: the computer players to offer, e.g. "original,simple,simple2" to leave out both ACEs. */
 function parseAis(value: string | undefined): AiKind[] | undefined {
   if (!value) return undefined;
   const ais = value.split(',').map((s) => s.trim());

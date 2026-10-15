@@ -13,7 +13,7 @@ import {
   SEA_UNKNOWN,
   type ShipClass,
 } from '@bs/shared';
-import { chooseShotsByDensity } from './simple.ts';
+import { chooseShotsByDensity, drawCell, HUNT_POWER } from './simple.ts';
 import type { AiPlayer, ShotRequest } from './types.ts';
 
 /**
@@ -41,6 +41,11 @@ export interface StrongOptions {
   candidates: number[];
   /** Sampled fleets each candidate is played out in. */
   worlds: number;
+  /**
+   * Draw shots that only hunt at random, with odds of their score to this power, instead of
+   * always the best one (see DensityOptions.huntPower). The rollouts still play greedily.
+   */
+  huntPower?: number;
 }
 
 /**
@@ -238,6 +243,8 @@ function pickSalvo(
     for (const p of occurrences[c]!) sum += worth[p]! + (found[p] ? 0 : opts.findBonus);
     return sum;
   };
+  /** Whether a shot at the cell could hit a ship known to be damaged. */
+  const finishes = (c: number) => occurrences[c]!.some((p) => worth[p]! > 1);
   const chosen = new Uint8Array(CELL_COUNT);
   const shots: number[] = [];
   while (shots.length < count) {
@@ -252,6 +259,12 @@ function pickSalvo(
       }
     }
     if (best < 0) break;
+    if (opts.huntPower !== undefined && !finishes(best)) {
+      const scores = Array.from({ length: CELL_COUNT }, (_, c) =>
+        sea[c] === SEA_UNKNOWN && !chosen[c] ? gain(c) : 0,
+      );
+      best = drawCell(scores, opts.huntPower, () => true, rng) ?? best;
+    }
     chosen[best] = 1;
     for (const p of occurrences[best]!) found[p] = 1;
     shots.push(best);
@@ -262,6 +275,7 @@ function pickSalvo(
 /** The rollouts' own AI: the score picker on a few samples, so each turn is quick. */
 const ROLLOUT: StrongOptions = {
   ...DEFAULT_STRONG,
+  huntPower: undefined,
   chains: 2,
   burnIn: 5,
   samples: 10,
@@ -377,4 +391,11 @@ export function sampleFleetCells(
 export const strongAi: AiPlayer = {
   placeFleet: (rng) => randomLayout(rng),
   chooseShots: (request, rng) => chooseShotsStrong(request, rng),
+};
+
+/** ACE 2: the same, but no two openings alike. */
+export const strong2Ai: AiPlayer = {
+  placeFleet: (rng) => randomLayout(rng),
+  chooseShots: (request, rng) =>
+    chooseShotsStrong(request, rng, { ...DEFAULT_STRONG, huntPower: HUNT_POWER }),
 };
