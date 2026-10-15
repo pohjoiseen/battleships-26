@@ -405,8 +405,8 @@ function drawCredits() {
   ctx.fillRect(0, y, LW, 2);
   const line = (text: string, k: number, colour: string) =>
     drawText(ctx, text, LW / 2, y + 7 + k * L.creditsLine, colour, { align: 'center' });
-  line('A REMAKE OF BATTLE SHIPS - HIT-PAK 1987', 0, C.brightWhite);
-  line('FOR THE ZX SPECTRUM', 1, C.brightCyan);
+  line('AN UNOFFICIAL REMAKE OF BATTLE SHIPS - HIT-PAK 1987', 0, C.brightWhite);
+  line('FOR THE ZX SPECTRUM, NOT AFFILIATED WITH ITS AUTHORS', 1, C.brightCyan);
   const hint =
     page === 'scores'
       ? touch
